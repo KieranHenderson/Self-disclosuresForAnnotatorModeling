@@ -30,8 +30,7 @@ parser.add_argument("--bert_model", dest="bert_model", default='sentence-transfo
 parser.add_argument("--dirname", dest="dirname", type=str, required=True, help="Directory containing the json files")
 parser.add_argument("--output_dir", dest="output_dir", type=str, required=True)
 parser.add_argument("--embed_sentences", dest="embed_sentences", type=str2bool, default=False, help="If set, embed individual sentences instead of full posts")
-parser.add_argument("--filter_cond", dest="filter_cond", type=int, default=5, help="Minimum amout of posts a user must have to be included in the dataset")
-parser.add_argument("--max_posts_per_author", dest="max_posts_per_author", type=int, default=5, help="Maximum number of posts per author to include in the dataset")
+parser.add_argument("--posts_per_author", dest="posts_per_author", type=int, default=5, help="Number of posts per author to include in the dataset")
 parser.add_argument("--output_file_name", dest="output_file_name", type=str, default="user_embeddings")
 parser.add_argument("--random_sampling", dest="random_sampling", type=str2bool, default=False, help="If set, use random sampling instead of all posts")
 """
@@ -46,12 +45,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     path_to_data = args.path_to_data
     embed_sentences = args.embed_sentences
-    filter_cond = args.filter_cond
-    max_posts_per_author = args.max_posts_per_author
+    posts_per_author = args.posts_per_author
     output_file = args.output_file_name + '.pkl'
     random_sampling = args.random_sampling
 
-    sys.stdout = open(f"console_output_{output_file}.txt", "w")
+    # sys.stdout = open("console_output.txt", "w")
 
     # NOTE: social_chemistry ends up getting passed into SocialNormDataset (dataset.py),
     # so I guessed that social_chemistry_clean_with_fulltexts_and_authors is
@@ -68,11 +66,10 @@ if __name__ == '__main__':
 
     # creates the verdicts data structure
     print("Creating verdicts data structure")
-    print("Using filter cond: {}".format(filter_cond))
-    # For random sampling
-    dataset = SocialNormDataset(social_comments, social_chemistry, cond=filter_cond, random_sampling=random_sampling, max_posts_per_author=max_posts_per_author)
 
+    dataset = SocialNormDataset(social_comments, social_chemistry)
     authors = set(dataset.authorsToVerdicts.keys())
+
     print(DEVICE)
     print(len(authors))
     print(authors)
@@ -84,6 +81,10 @@ if __name__ == '__main__':
         filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
         results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
         # results = extract_authors_vocab_AMIT(filenames[0], authors)
+    elif 'demographics' in args.dirname:
+        print(f'Processing json files from directory {args.dirname}')
+        filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
+        results = Parallel(n_jobs=32)(delayed(extract_authors_demographics)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
     else:
         print(f'Processing text files from directory {args.dirname}')
         filenames = sorted(glob.glob(os.path.join(args.dirname, '*')))
@@ -120,55 +121,62 @@ if __name__ == '__main__':
 
 
     DEBUG = False
+    
+    print(authors_vocab.keys())
 
     if embed_sentences == False:
         print("Embedding posts")
         # NOTE: Process & generate the embeddings for each author for each POST of the author and then average the embeddings together 
         for author, posts in tqdm(authors_vocab.items(), desc="Embedding authors"):
             sys.stdout.flush()
-            processed_texts = [process_tweet(text[0]) for text in posts]
-            # print("Number of posts: {}".format(len(processed_texts)))
-            # for i in range(5):
-            #     print(processed_texts[i])
+            if len(posts) >= posts_per_author:
+
+                if random_sampling and len(posts) > posts_per_author and posts_per_author > 0:
+                    # Randomly sample posts from the author
+                    posts = np.random.choice(posts, size=posts_per_author, replace=False)
 
 
-            # Tokenize posts
-            batches_text = extract_batches(processed_texts, 64)
-            embeddings = []
-            encoded_inputs = [tokenizer(processed_texts, padding=True, truncation=True, return_tensors='pt') for processed_texts in batches_text]
-            
+                processed_texts = [process_tweet(text[0]) for text in posts]
 
-            for encoded_input in encoded_inputs:
-                with torch.no_grad():
-                    # Compute token embeddings
-                    encoded_input = {k: v.to(DEVICE) for k, v in encoded_input.items()}
-                    model_output = model(**encoded_input)
-                    # Perform pooling
-                    post_embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
+                # Tokenize posts
+                batches_text = extract_batches(processed_texts, 64)
+                embeddings = []
+                encoded_inputs = [tokenizer(processed_texts, padding=True, truncation=True, return_tensors='pt') for processed_texts in batches_text]
+                
 
-                    # Normalize embeddings
-                    post_embeddings = F.normalize(post_embeddings, p=2, dim=1)
+                for encoded_input in encoded_inputs:
+                    with torch.no_grad():
+                        # Compute token embeddings
+                        encoded_input = {k: v.to(DEVICE) for k, v in encoded_input.items()}
+                        model_output = model(**encoded_input)
+                        # Perform pooling
+                        post_embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
 
-                    # Average embeddings
-                    average = post_embeddings.cpu().mean(axis=0)
-                    embeddings.append(average.unsqueeze(0))
+                        # Normalize embeddings
+                        post_embeddings = F.normalize(post_embeddings, p=2, dim=1)
 
-            if len(embeddings) > 1:
-                embedding = torch.cat(embeddings)
-                user_embeddings[author] = embedding.mean(axis=0).numpy()
-            else:
-                user_embeddings[author] = embeddings[0].squeeze().numpy()
+                        # Average embeddings
+                        average = post_embeddings.cpu().mean(axis=0)
+                        embeddings.append(average.unsqueeze(0))
 
-            if DEBUG:
-                print(user_embeddings[author], user_embeddings[author].shape)
-                DEBUG = False
+                if len(embeddings) > 1:
+                    embedding = torch.cat(embeddings)
+                    user_embeddings[author] = embedding.mean(axis=0).numpy()
+                else:
+                    user_embeddings[author] = embeddings[0].squeeze().numpy()
 
-    else:
+                
+
+
+                if DEBUG:
+                    print(user_embeddings[author], user_embeddings[author].shape)
+                    DEBUG = False
+
+    else: # todo fix sampling and post per author 
         print("Embedding sentences")
         # NOTE: Process & generate the embeddings for each author for each SENTENCE of the author and then average the embeddings together 
         for author, posts in tqdm(authors_vocab.items(), desc="Embedding authors"):
             sys.stdout.flush()
-
 
             # split the posts into sentences and process them
             all_sentences = []
@@ -176,9 +184,12 @@ if __name__ == '__main__':
                 sentences = sent_tokenize(text[0])  # Split post into sentences
                 processed = [process_tweet(sentence) for sentence in sentences]
                 all_sentences.extend(processed)
-            # print("Number of sentences: {}".format(len(all_sentences)))
-            # for i in range(5):
-            #     print(all_sentences[i])
+            
+            # random sampling 
+            if random_sampling and len(all_sentences) > posts_per_author:
+                # Randomly sample sentences from the author
+                all_sentences = np.random.choice(all_sentences, size=posts_per_author, replace=False)
+
             # Tokenize sentences and break into batches of 64
             batches_text = extract_batches(all_sentences, 64)
             embeddings = []
@@ -200,15 +211,19 @@ if __name__ == '__main__':
                     average = sentence_embeddings.cpu().mean(axis=0)
                     embeddings.append(average.unsqueeze(0))
 
+                   
+
             if len(embeddings) > 1:
                 embedding = torch.cat(embeddings)
                 user_embeddings[author] = embedding.mean(axis=0).numpy()
             else:
                 user_embeddings[author] = embeddings[0].squeeze().numpy()
 
+
             if DEBUG:
                 print(user_embeddings[author], user_embeddings[author].shape)
                 DEBUG = False
+
 
 
     print("Saving embeddings")

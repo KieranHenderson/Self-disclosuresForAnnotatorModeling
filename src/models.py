@@ -51,7 +51,7 @@ class MLP(nn.Module):
 
 
 class SentBertClassifier(nn.Module):
-    def __init__(self, users_layer=False, user_dim=768, 
+    def __init__(self, users_layer=False, demo_layer=False, user_dim=768, 
                  num_outputs=2, sbert_dim=384, 
                  sbert_model='sentence-transformers/all-MiniLM-L6-v2'):
         super().__init__()
@@ -60,6 +60,7 @@ class SentBertClassifier(nn.Module):
         self.dropout = nn.Dropout(0.2)
         self.linear1 = nn.Linear(sbert_dim, sbert_dim//2)
         self.users_layer = users_layer
+        self.demo_layer = demo_layer
         
         if users_layer:
             if user_dim > 768:
@@ -72,8 +73,13 @@ class SentBertClassifier(nn.Module):
             # out = in x W^T + b where W is weight mat size (user_out_dim, sbert_dim)
             # b is bias vec of size (user_out_dim)
             self.user_linear1 = nn.Linear(sbert_dim, user_out_dim)
+            self.demo_linear1 = nn.Linear(sbert_dim, user_out_dim)
+
             comb_in_dim = sbert_dim//2 + user_out_dim
-            self.combine_linear = nn.Linear(comb_in_dim, comb_in_dim // 2)
+            if demo_layer:
+                comb_in_dim += user_out_dim
+            self.comb_in_dim = comb_in_dim
+            self.combine_linear = nn.Linear(comb_in_dim, comb_in_dim // 2) # Note might need to change dim if using demo embeddings
             self.linear2 = nn.Linear(comb_in_dim // 2, num_outputs)
         else:
             self.linear2 = nn.Linear(sbert_dim//2, num_outputs)      
@@ -81,7 +87,7 @@ class SentBertClassifier(nn.Module):
         self.relu = nn.ReLU()
         
         
-    def forward(self, input, users_embeddings=None):
+    def forward(self, input, users_embeddings=None, demo_embeddings=None):
         bert_output = self.model(**input)
         pooled_output = self.mean_pooling(bert_output, input['attention_mask'])
         downsized_output = self.linear1(self.dropout(pooled_output))
@@ -93,8 +99,16 @@ class SentBertClassifier(nn.Module):
             # -> user_linear1 = torch.nn.Linear layer where linear transf
             # applied to users_embeddings: output = user_embeddings x W^T + b
             users_output =  self.dropout(self.relu(self.user_linear1(users_embeddings)))
-            text_output = self.dropout(output)
-            output = self.relu(self.combine_linear(torch.cat([text_output, users_output], dim=1)))
+            text_output = self.dropout(output) # TODO: check if this is needed
+
+            if demo_embeddings is not None:
+                demo_output = self.dropout(self.relu(self.demo_linear1(demo_embeddings)))
+                combined = torch.cat([text_output, users_output, demo_output], dim=1)
+            else:
+                combined = torch.cat([text_output, users_output], dim=1)
+
+
+            output = self.relu(self.combine_linear(combined))
             
         output = self.linear2(self.dropout(output))
         return output

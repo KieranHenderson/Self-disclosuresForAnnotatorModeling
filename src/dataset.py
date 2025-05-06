@@ -118,7 +118,7 @@ class Dataset(ABC):
 class SocialNormDataset:
     """Creates the verdicts datastructures to use through out the project
     """
-    def __init__(self, sc, sn, cond=5, random_sampling=False, max_posts_per_author=None):
+    def __init__(self, sc, sn, cond=5):
         self.verdictToId = {}
         self.idToVerdict = []
         self.verdictToText = {}
@@ -136,8 +136,6 @@ class SocialNormDataset:
         self.postToVerdicts = ListDict()
         #self.aita_labels = ['NTA','YTA','NAH','ESH','INFO']
         self.aita_labels = ['NTA','YTA']
-        self.max_posts_per_author = max_posts_per_author
-        self.random_sampling = random_sampling
 
         self.load_maps(sc, sn)
 
@@ -161,37 +159,13 @@ class SocialNormDataset:
         filtering_cond = self.filtering_cond
 
 
-        if self.random_sampling == False:
-            # Original block which only filtered out authors with less than filtering_cond posts
-            for a, c in authorsToCount.items():
-                if c < filtering_cond:
-                    verdicts = self.authorsToVerdicts.pop(a)
-                    for v in verdicts:
-                        del self.verdictToAuthor[v]    
+        for a, c in authorsToCount.items():
+            if c < filtering_cond:
+                verdicts = self.authorsToVerdicts.pop(a)
+                for v in verdicts:
+                    del self.verdictToAuthor[v]    
 
-        else: 
-            print(f"Randomly sampling authors to keep only {filtering_cond} posts")
-            # Random sampling of authors to keep only filtering_cond posts
-            for author, verdicts in list(self.authorsToVerdicts.items()):
-                if len(verdicts) <= self.filtering_cond:
-                    # Filter out authors with too few posts
-                    for v in verdicts:
-                        del self.verdictToAuthor[v]
-                    self.authorsToVerdicts.pop(author)
-                elif self.max_posts_per_author is not None:
-                    # Randomly sample posts if author has more than desired number
-                    sampled = random.sample(verdicts, min(self.max_posts_per_author, len(verdicts)))
-                    
-                    # Update mapping to only include sampled verdicts
-                    self.authorsToVerdicts[author] = sampled
-
-                    # Remove unsampled verdicts from verdictToAuthor
-                    for v in verdicts:
-                        if v not in sampled:
-                            del self.verdictToAuthor[v]
-
-           
-                    
+        
         print("After filtering, we are left with {} authors and {} verdicts.".format(len(self.authorsToVerdicts), len(self.verdictToAuthor)))   
         
         for _, row in tqdm(sc.iterrows(), desc="Creating comments maps"):

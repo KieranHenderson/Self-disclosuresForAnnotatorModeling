@@ -1,4 +1,6 @@
 import glob
+import sys
+print(sys.executable)
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 
@@ -32,32 +34,42 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
+        #logging.FileHandler(os.path.join(os.path.expanduser("~/PycharmProjects/perspectivism-personalization/logs"), f"{TIMESTAMP}.log")),
         logging.FileHandler(os.path.join("logs", f"{TIMESTAMP}.log")),
         logging.StreamHandler()
     ]
 )
 
+
 parser = ArgumentParser()
 
 parser.add_argument("--path_to_data", dest="path_to_data", required=True, type=str)
+
 parser.add_argument("--use_authors", dest="use_authors", required=True, type=str2bool)
 parser.add_argument("--author_encoder", dest="author_encoder", required=True, type=str) # ['average', 'priming', 'graph', 'none']
+parser.add_argument("--social_norm", dest="social_norm", required=True, type=str2bool) # True or False
+
+parser.add_argument("--use_demos", dest="use_demos", required=True, type=str2bool) # True or False
+parser.add_argument("--demo_embedding_path", dest="demo_embedding_path", default=None, type=str)
+
 
 parser.add_argument("--split_type", dest="split_type", required=True, type=str) # ['author', 'sit', 'verdicts']
+parser.add_argument("--situation", dest="situation", required=True, type=str) # ['text', 'title']
+
 parser.add_argument("--sbert_model", dest="sbert_model", default='sentence-transformers/all-distilroberta-v1', type=str)
 parser.add_argument("--authors_embedding_path", dest="authors_embedding_path", required=True, type=str)
 parser.add_argument("--sbert_dim", dest="sbert_dim", default=768, type=int)
 parser.add_argument("--user_dim", dest="user_dim", default=768, type=int)
 parser.add_argument("--graph_dim", dest="graph_dim", default=384, type=int)
 parser.add_argument("--concat", dest="concat", default='true', type=str2bool)
-parser.add_argument("--num_epochs", dest="num_epochs", default=5, type=int)
+parser.add_argument("--num_epochs", dest="num_epochs", default=10, type=int)
 parser.add_argument("--learning_rate", dest="learning_rate", default=1e-4, type=float)
 parser.add_argument("--batch_size", dest="batch_size", default=32, type=int)
 parser.add_argument("--loss_type", dest="loss_type", default='softmax', type=str)
 parser.add_argument("--verdicts_dir", dest="verdicts_dir", default='../data/verdicts', type=str)
 parser.add_argument("--bert_tok", dest="bert_tok", default='bert-base-uncased', type=str)
 parser.add_argument("--dirname", dest="dirname", type=str, default='../data/amit_filtered_history')
-parser.add_argument("--results_dir", dest="results_dir", type=str, default='results')
+parser.add_argument("--results_dir", dest="results_dir", type=str, default='../results')
 parser.add_argument("--model_name", dest="model_name", type=str, required=True) # ['judge_bert', 'sbert'] otherwise exception
 
 
@@ -65,7 +77,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print_args(args, logging)
     path_to_data = args.path_to_data
-
     dirname = args.dirname
     bert_checkpoint = args.bert_tok
     model_name = args.model_name
@@ -74,25 +85,31 @@ if __name__ == '__main__':
     graph_dim = args.graph_dim
     checkpoint_dir = os.path.join('results/best_models', f'{TIMESTAMP}_best_model_sampled.pt')
     graph_checkpoint_dir = os.path.join(results_dir, f'best_models/{TIMESTAMP}_best_graphmodel.pt')
+    
     authors_embedding_path = args.authors_embedding_path
+    demo_embedding_path = args.demo_embedding_path
+    USE_DEMOS = args.use_demos
     USE_AUTHORS = args.use_authors
     author_encoder = args.author_encoder
+    social_norm = args.social_norm
     if USE_AUTHORS:
         assert author_encoder in {'average', 'graph', 'attribution'}
     else:
-        assert author_encoder.lower() == 'none' or author_encoder.lower() == 'priming' or author_encoder.lower() == 'user_id'
+        assert author_encoder.lower() == 'none' or author_encoder.lower() == 'priming'  or author_encoder.lower() == 'user_id'
         
     split_type = args.split_type
     
     
     logging.info("Device {}".format(DEVICE))
-    
-    social_norm = True #@TODO: Fixed for EMNLP, should make it a parameter
+
     if social_norm:
         social_chemistry = pd.read_pickle(path_to_data + 'social_chemistry_clean_with_fulltexts')
+        print(social_chemistry.shape)
 
         with open(path_to_data+'social_norms_clean.csv', encoding="utf8") as file:
             social_comments = pd.read_csv(file)
+
+        print(social_comments.shape)
         
         dataset = SocialNormDataset(social_comments, social_chemistry)
     else:
@@ -135,16 +152,17 @@ if __name__ == '__main__':
     logging.info(test_size_stats)
     
     if author_encoder == 'priming':
-        authorToSampledText = pkl.load(open('../data/priming_text.pkl', 'rb'))
+        authorToSampledText = pkl.load(open(os.path.join(path_to_data, 'priming_text.pkl'), 'rb'))
     
     graph_model = None
     data = None
     if USE_AUTHORS and (author_encoder == 'average' or author_encoder == 'attribution'):
+        print(f"Loaded authors embeddings from {authors_embedding_path}")
         embedder = AuthorsEmbedder(embeddings_path=authors_embedding_path, dim=args.user_dim)
     elif USE_AUTHORS and author_encoder == 'graph':
         logging.info("Creating graph")
-        embedder = pkl.load(open('../data/embeddings/emnlp/sbert_authorAMIT.pkl', 'rb'))
-        authorToAuthor = json.load(open('../data/authors_interactions_in_history.json', 'r'))
+        embedder = pkl.load(open(os.path.join(path_to_data, 'embeddings/emnlp/sbert_authorAMIT.pkl'), 'rb'))
+        authorToAuthor = json.load(open(os.path.join(path_to_data, 'authors_interactions_in_history.json'), 'r'))
         graphData, edge_index = create_author_graph(GraphData(), dataset, embedder, authorToAuthor, limit_connections=100)
         data = Data(x=torch.stack(graphData.representations), edge_index=edge_index.contiguous())
         
@@ -155,6 +173,9 @@ if __name__ == '__main__':
 
     else:
         embedder = None
+
+    if USE_DEMOS:
+        demo_embedder = AuthorsEmbedder(embeddings_path=demo_embedding_path, dim=args.user_dim)
     
     
     raw_dataset = {'train': {'index': [], 'text': [], 'label': [], 'author_node_idx': []}, 
@@ -163,7 +184,12 @@ if __name__ == '__main__':
 
     
     for i, verdict in enumerate(train_verdicts):
-        situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
+        if args.situation == 'text':
+            situation_title = dataset.postIdToText[dataset.verdictToParent[verdict]]
+        else:
+            assert args.situation == 'title', print(args.situation)
+            situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
+        
         if situation_title != '' and situation_title is not None and verdict in dataset.verdictToAuthor:
             author = dataset.verdictToAuthor[verdict]
             
@@ -175,12 +201,12 @@ if __name__ == '__main__':
                     priming_text = ''
                     if author in authorToSampledText:
                         priming_text = authorToSampledText[author]
-                    raw_dataset['train']['text'].append(priming_text + ' [SEP] ' + situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['train']['text'].append(priming_text + ' [SEP] ' + situation_title)
                 elif author_encoder == 'user_id':
                     author = dataset.verdictToAuthor[verdict]
-                    raw_dataset['train']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['train']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
                 else:
-                    raw_dataset['train']['text'].append(situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['train']['text'].append(situation_title)
                     
                 raw_dataset['train']['label'].append(train_labels[i])
                 
@@ -192,7 +218,12 @@ if __name__ == '__main__':
                 assert train_labels[i] == dataset.verdictToLabel[verdict] 
         
     for i, verdict in enumerate(val_verdicts):
-        situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
+        if args.situation == 'text':
+            situation_title = dataset.postIdToText[dataset.verdictToParent[verdict]]
+        else:
+            assert args.situation == 'title', print(args.situation)
+            situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
+            
         if situation_title != '' and situation_title is not None and verdict in dataset.verdictToAuthor:
             author = dataset.verdictToAuthor[verdict]
             
@@ -204,12 +235,12 @@ if __name__ == '__main__':
                     priming_text = ''
                     if author in authorToSampledText:
                         priming_text = authorToSampledText[author]
-                    raw_dataset['val']['text'].append(priming_text + ' [SEP] ' + situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['val']['text'].append(priming_text + ' [SEP] ' + situation_title)
                 elif author_encoder == 'user_id':
                     author = dataset.verdictToAuthor[verdict]
-                    raw_dataset['val']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['val']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
                 else:
-                    raw_dataset['val']['text'].append(situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['val']['text'].append(situation_title)
                 
                 raw_dataset['val']['label'].append(val_labels[i])
                 
@@ -221,7 +252,12 @@ if __name__ == '__main__':
                 assert val_labels[i] == dataset.verdictToLabel[verdict]          
         
     for i, verdict in enumerate(test_verdicts):
-        situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
+        if args.situation == 'text':
+            situation_title = dataset.postIdToText[dataset.verdictToParent[verdict]]
+        else:
+            assert args.situation == 'title', print(args.situation)
+            situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
+        
         if situation_title != '' and situation_title is not None and verdict in dataset.verdictToAuthor:
             author = dataset.verdictToAuthor[verdict]
             
@@ -234,12 +270,12 @@ if __name__ == '__main__':
                     if author in authorToSampledText:
                         priming_text = authorToSampledText[author]
                     # priming text contains the [SEP] in the end by itself
-                    raw_dataset['test']['text'].append(priming_text + ' [SEP] ' + situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['test']['text'].append(priming_text + ' [SEP] ' + situation_title)
                 elif author_encoder == 'user_id':
                     author = dataset.verdictToAuthor[verdict]
-                    raw_dataset['test']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['test']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
                 else:
-                    raw_dataset['test']['text'].append(situation_title + ' [SEP] ' + dataset.verdictToCleanedText[verdict])
+                    raw_dataset['test']['text'].append(situation_title)
                     
                 raw_dataset['test']['label'].append(test_labels[i])
                 
@@ -254,8 +290,7 @@ if __name__ == '__main__':
     if model_name == 'sbert':
         logging.info("Training with SBERT, model name is {}".format(model_name))
         tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
-        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim)
-        
+        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim, demo_layer=True)
     elif model_name == 'judge_bert':
         logging.info("Training with Judge Bert, model name is {}".format(model_name))
         tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
@@ -265,10 +300,6 @@ if __name__ == '__main__':
     
     
     model.to(DEVICE)
-    
-    if author_encoder == 'user_id':
-        tokenizer.add_tokens([f'[{author}]' for author in dataset.authorsToVerdicts.keys()])
-        model.model.resize_token_embeddings(len(tokenizer))
     
     ds = DatasetDict()
 
@@ -341,10 +372,25 @@ if __name__ == '__main__':
             author_node_idx = batch.pop("author_node_idx")
             batch = {k: v.to(DEVICE) for k, v in batch.items()}
             labels = batch.pop("labels")
-            
+            demo_embeddings = None
+
             if USE_AUTHORS and  (author_encoder == 'average' or author_encoder == 'attribution'):
+                # print("authors")
+                # for index in verdicts_index:
+                #     print(embedder.get_author_embeddings(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]).shape)
                 authors_embeddings = torch.stack([embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
-                output = model(batch, authors_embeddings)
+                
+                
+                # print("demos")
+                if USE_DEMOS:
+                    # for index in verdicts_index:
+                    #     if demo_embedder.get_author_embeddings(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]).shape[0] != 768:
+                    #         print("Demos shape is not 768")
+                    #         print(demo_embedder.get_author_embeddings(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]))
+                    #     print(demo_embedder.get_author_embeddings(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]).shape)
+                    demo_embeddings = torch.stack([demo_embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
+
+                output = model(batch, users_embeddings = authors_embeddings, demo_embeddings=demo_embeddings)
             elif USE_AUTHORS and author_encoder == 'graph':
                 graph_output = graph_model(data.x.to(DEVICE), data.edge_index.to(DEVICE))
                 authors_embeddings = graph_output[author_node_idx.to(DEVICE)]
@@ -359,9 +405,9 @@ if __name__ == '__main__':
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
-            progress_bar.update(1)
+            progress_bar.update(1)  
         
-        val_metric = evaluate(eval_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder)
+        val_metric = evaluate(eval_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, demo_embedder=demo_embedder, USE_DEMOS=USE_DEMOS)
         val_metrics.append(val_metric)
         
         logging.info("Epoch {} **** Loss {} **** Metrics validation: {}".format(epoch, loss, val_metric))
@@ -380,12 +426,13 @@ if __name__ == '__main__':
         graph_model.load_state_dict(torch.load(graph_checkpoint_dir))
         graph_model.to(DEVICE)
         
-    test_metrics = evaluate(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, True)
+    test_metrics = evaluate(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, True, demo_embedder=demo_embedder, USE_DEMOS=USE_DEMOS)
     results = test_metrics.pop('results')
     logging.info(test_metrics)
     
     result_logs = {'id': TIMESTAMP}
     result_logs['seed'] = SEED
+    result_logs['type'] = f'NO VERDICTS TEXT + SITUATION {args.situation}'
     result_logs['sbert_model'] = args.sbert_model
     result_logs['model_name'] = args.model_name
     result_logs['use_authors_embeddings'] = USE_AUTHORS
@@ -404,7 +451,11 @@ if __name__ == '__main__':
     result_logs['results'] = results
     
     
-    res_file = os.path.join(results_dir, TIMESTAMP + ".json")
+    #res_file = os.path.join(results_dir, TIMESTAMP + ".json")
+    # res_file = os.path.join(r'C:\Users\User\PycharmProjects\perspectivism-personalization\results',
+    #                               f'{TIMESTAMP}.json')
+    res_file = os.path.join(r'results',
+                                  f'{TIMESTAMP}.json')
     with open(res_file, mode='w') as f:
         json.dump(result_logs, f, cls=NpEncoder, indent=2)
 

@@ -131,6 +131,7 @@ def extract_authors_subreddits(filename, authors):
                             
     return author_subreddits
 
+###
 def extract_authors_vocab_AMIT(filename, authors):
     author_comments = ListDict()
 
@@ -143,6 +144,17 @@ def extract_authors_vocab_AMIT(filename, authors):
                     
     return author_comments
 
+def extract_authors_demographics(filename, authors):
+    author_comments = ListDict()
+
+    #key = filename.split('/')[-1].split('.')[0]
+    with open(filename, 'r') as in_file:
+        comments = json.load(in_file)
+        for comment in comments:
+            if comment['author'] in authors:
+                author_comments.append(comment['author'], comment['body'])
+                    
+    return author_comments
 
 def write_persona(path, vocabTimes, nlp, keywords= ['my', 'myself']):
     vocab, times, subreddit = zip(*vocabTimes)

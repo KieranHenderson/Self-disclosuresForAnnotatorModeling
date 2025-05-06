@@ -24,9 +24,13 @@ class AuthorsEmbedder:
         self.authors_embeddings = pkl.load(open(embeddings_path, 'rb'))
         self.dim = dim
     
+    def get_author_embeddings(self, author):
+        return self.authors_embeddings.get(author, torch.zeros(self.dim))
     
     def embed_author(self, author):
         return torch.tensor(self.authors_embeddings.get(author, torch.rand(self.dim)))
+    
+    
         
     
 
@@ -68,11 +72,11 @@ def loss_fn(output, targets, samples_per_cls, no_of_classes=2, loss_type = "soft
 
 
 def get_verdicts_by_situations_split(dataset):
-    if not os.path.exists(r'C:\Users\User\PycharmProjects\perspectivism-personalization\data\splits\train_sit.txt'):
+    if not os.path.exists(r'data\splits\train_sit.txt'):
     #if not os.path.exists('../data/splits/train_sit.txt'):
         all_situations = set(dataset.postIdToId.keys())
         #annotated_situations = json.load(open(r'../data/conflict_aspect_annotations.json', 'r'))
-        annotated_situations = json.load(open(r'C:\Users\User\PycharmProjects\perspectivism-personalization\data\conflict_aspect_annotations.json', 'r'))
+        annotated_situations = json.load(open(r'data/conflict_aspect_annotations.json', 'r'))
         annotated_situations = set(annotated_situations['data'].keys())
         all_situations = list(all_situations.difference(annotated_situations))
 
@@ -82,17 +86,17 @@ def get_verdicts_by_situations_split(dataset):
         # write_splits('../data/splits/train_sit.txt', train_situations)
         # write_splits('../data/splits/test_sit.txt', test_situations)
         # write_splits('../data/splits/val_sit.txt', val_situations)
-        write_splits(r'C:\Users\User\PycharmProjects\perspectivism-personalization\data\splits\train_sit.txt', train_situations)
-        write_splits(r'C:\Users\User\PycharmProjects\perspectivism-personalization\data\splits\test_sit.txt', test_situations)
-        write_splits(r'C:\Users\User\PycharmProjects\perspectivism-personalization\data\splits\val_sit.txt', val_situations)
+        write_splits(r'data\splits\train_sit.txt', train_situations)
+        write_splits(r'data\splits\test_sit.txt', test_situations)
+        write_splits(r'data\splits\val_sit.txt', val_situations)
     else:
         print("Loading situations splits.")
         # train_situations = read_splits('../data/splits/train_sit.txt')
         # val_situations = read_splits('../data/splits/val_sit.txt')
         # test_situations = read_splits('../data/splits/test_sit.txt')
-        train_situations = read_splits(r'C:\Users\User\PycharmProjects\perspectivism-personalization\data\splits\train_sit.txt')
-        val_situations = read_splits(r'C:\Users\User\PycharmProjects\perspectivism-personalization\data\splits\val_sit.txt')
-        test_situations = read_splits(r'C:\Users\User\PycharmProjects\perspectivism-personalization\data\splits\test_sit.txt')
+        train_situations = read_splits(r'data\splits\train_sit.txt')
+        val_situations = read_splits(r'data\splits\val_sit.txt')
+        test_situations = read_splits(r'data\splits\test_sit.txt')
         
     postToVerdicts = ListDict()
     for v, s in dataset.verdictToParent.items():
@@ -127,7 +131,7 @@ def get_verdicts_by_author_split(dataset):
     return train_verdicts, train_labels, val_verdicts, val_labels, test_verdicts, test_labels
 
 
-def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=False):
+def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, demo_embedder=None, USE_DEMOS=False, return_predictions=False):
     accuracy_metric = evaluate2.load("accuracy")
     f1_metric = evaluate2.load("f1")
     
@@ -147,8 +151,13 @@ def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, datase
 
         with torch.no_grad():
             if USE_AUTHORS and  (author_encoder == 'average' or author_encoder == 'attribution'):
-                authors_embeddings =  torch.stack([embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
-                logits = model(batch, authors_embeddings)
+                if USE_DEMOS:
+                    demo_embeddings = torch.stack([demo_embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
+                    authors_embeddings = torch.stack([embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
+                    logits = model(batch, users_embeddings=authors_embeddings, demo_embeddings=demo_embeddings)
+                else:
+                    authors_embeddings =  torch.stack([embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
+                    logits = model(batch, authors_embeddings)
             elif USE_AUTHORS and author_encoder == 'graph':
                 graph_output = graph_model(data.x.to(DEVICE), data.edge_index.to(DEVICE))
                 authors_embeddings = graph_output[author_node_idx.to(DEVICE)]

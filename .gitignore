@@ -7,3 +7,5 @@ results
 *.txt
 *.md
 *.json
+*.pyc
+__pycache__/
