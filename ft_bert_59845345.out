@@ -1,0 +1,28 @@
+
+Due to MODULEPATH changes, the following have been reloaded:
+  1) arrow/17.0.0
+
+cudnn/9.2.1.18:
+============================================================================================
+The NVidia software listed above is subject to the terms of the NVidia Software
+License Agreement, which can be obtained via http://developer.nvidia.com.
+By continuing, you accept to be bound by the terms of that license.
+
+Le logiciel NVidia listé ci-dessus est sous réserve des termes de la licence
+NVidia Software License Agreement, qui peut être obtenue via
+http://developer.nvidia.com.
+En continuant, vous acceptez les termes de cette licence.
+============================================================================================
+	 
+
+The following have been reloaded with a version change:
+  1) arrow/17.0.0 => arrow/18.1.0
+  2) ipykernel/2024a => ipykernel/2025a
+  3) scipy-stack/2024a => scipy-stack/2025a
+
+/localscratch/spool/slurmd/job59845345/slurm_script: line 18: venv/bin/activate: No such file or directory
+/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/python/3.11.5/bin/python
+Traceback (most recent call last):
+  File "/scratch/kieranh/perspectivism-personalization/src/ft_bert_no_verdicts.py", line 4, in <module>
+    from joblib import Parallel, delayed
+ModuleNotFoundError: No module named 'joblib'
