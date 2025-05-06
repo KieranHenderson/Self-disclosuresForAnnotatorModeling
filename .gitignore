@@ -1,0 +1,8 @@
+env
+data
+logs
+results
+.idea
+*.txt
+*.md
+*.json
