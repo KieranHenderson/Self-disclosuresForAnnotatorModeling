@@ -1,0 +1,14 @@
+[nltk_data] Downloading package punkt to /home/kieranh/nltk_data...
+[nltk_data]   Package punkt is already up-to-date!
+[nltk_data] Downloading package punkt_tab to
+[nltk_data]     /home/kieranh/nltk_data...
+[nltk_data]   Package punkt_tab is already up-to-date!
+usage: users_sbert_embeddings_random.py [-h] --path_to_data PATH_TO_DATA
+                                        [--bert_model BERT_MODEL] --dirname
+                                        DIRNAME --output_dir OUTPUT_DIR
+                                        [--embed_sentences EMBED_SENTENCES]
+                                        [--posts_per_author POSTS_PER_AUTHOR]
+                                        [--output_file_name OUTPUT_FILE_NAME]
+                                        [--random_sampling RANDOM_SAMPLING]
+users_sbert_embeddings_random.py: error: unrecognized arguments: --max_posts_per_author=5 --filter_cond=5
+[Memory] Process start mem usage: 615.43 MB

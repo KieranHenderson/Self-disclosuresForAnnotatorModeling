@@ -8,4 +8,4 @@ python src/users_sbert_embeddings_random.py \
 --output_dir='data/embeddings/' \
 --embed_sentences='false' \
 --posts_per_author=0 \
---output_file_name='identities_embeddings' \
+--output_file_name='test' \

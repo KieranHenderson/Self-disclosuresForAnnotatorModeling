@@ -9,3 +9,4 @@ results
 *.json
 *.pyc
 __pycache__/
+.out
