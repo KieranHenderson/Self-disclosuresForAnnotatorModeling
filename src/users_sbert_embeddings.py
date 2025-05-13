@@ -85,7 +85,7 @@ if __name__ == '__main__':
     # These columns correspond to the social_norms.csv file, so I converted that to json
     # Another point of confusion, we're using parallel processing so the code
     # is expecting a substantial amount of JSON files -- I probably did something wrong here
-    if 'amit' in args.dirname:
+    if 'amit' in args.dirname or 'demographics' in args.dirname:
         print(f'Processing json files from directory {args.dirname}')
         filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
         results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))

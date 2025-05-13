@@ -14,6 +14,6 @@ python src/ft_bert_no_verdicts_demographics.py \
 --model_name='sbert' \
 --split_type='author' \
 --situation='title' \
---authors_embedding_path='data/embeddings/user_post_embeddings_similar_5.pkl' \
+--authors_embedding_path='data/embeddings/user_post_embeddings_5.pkl' \
 --path_to_data='data/' \
 --social_norm='true'

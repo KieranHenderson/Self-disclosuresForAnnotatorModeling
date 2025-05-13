@@ -415,7 +415,7 @@ if __name__ == '__main__':
         graph_model.load_state_dict(torch.load(graph_checkpoint_dir))
         graph_model.to(DEVICE)
         
-    test_metrics = evaluate(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, True)
+    test_metrics = evaluate(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
     results = test_metrics.pop('results')
     logging.info(test_metrics)
     

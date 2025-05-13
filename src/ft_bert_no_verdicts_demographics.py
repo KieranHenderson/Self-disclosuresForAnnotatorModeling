@@ -187,7 +187,7 @@ if __name__ == '__main__':
         if args.situation == 'text':
             situation_title = dataset.postIdToText[dataset.verdictToParent[verdict]]
         else:
-            assert args.situation == 'title', print(args.situation)
+            assert args.situation == 'title' #, print(args.situation)
             situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
         
         if situation_title != '' and situation_title is not None and verdict in dataset.verdictToAuthor:
@@ -221,7 +221,7 @@ if __name__ == '__main__':
         if args.situation == 'text':
             situation_title = dataset.postIdToText[dataset.verdictToParent[verdict]]
         else:
-            assert args.situation == 'title', print(args.situation)
+            assert args.situation == 'title' #, print(args.situation)
             situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
             
         if situation_title != '' and situation_title is not None and verdict in dataset.verdictToAuthor:
@@ -255,7 +255,7 @@ if __name__ == '__main__':
         if args.situation == 'text':
             situation_title = dataset.postIdToText[dataset.verdictToParent[verdict]]
         else:
-            assert args.situation == 'title', print(args.situation)
+            assert args.situation == 'title' #, print(args.situation)
             situation_title = dataset.postIdToTitle[dataset.verdictToParent[verdict]]
         
         if situation_title != '' and situation_title is not None and verdict in dataset.verdictToAuthor:
@@ -426,7 +426,7 @@ if __name__ == '__main__':
         graph_model.load_state_dict(torch.load(graph_checkpoint_dir))
         graph_model.to(DEVICE)
         
-    test_metrics = evaluate(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, True, demo_embedder=demo_embedder, USE_DEMOS=USE_DEMOS)
+    test_metrics = evaluate(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, demo_embedder, USE_DEMOS, return_predictions=True)
     results = test_metrics.pop('results')
     logging.info(test_metrics)
     
