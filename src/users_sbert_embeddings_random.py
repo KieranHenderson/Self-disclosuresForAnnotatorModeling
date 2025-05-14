@@ -143,31 +143,20 @@ if __name__ == '__main__':
                 # Tokenize posts
                 batches_text = extract_batches(processed_texts, 64)
                 embeddings = []
-                encoded_inputs = [tokenizer(processed_texts, padding=True, truncation=True, return_tensors='pt') for processed_texts in batches_text]
-                
-
-                for encoded_input in encoded_inputs:
+            
+                for batch in batches_text:
+                    encoded_input = tokenizer(batch, padding=True, truncation=True, return_tensors='pt')
+                    encoded_input = {k: v.to(DEVICE) for k, v in encoded_input.items()}
+                    
                     with torch.no_grad():
-                        # Compute token embeddings
-                        encoded_input = {k: v.to(DEVICE) for k, v in encoded_input.items()}
                         model_output = model(**encoded_input)
-                        # Perform pooling
                         post_embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-
-                        # Normalize embeddings
                         post_embeddings = F.normalize(post_embeddings, p=2, dim=1)
-
-                        # Average embeddings
-                        average = post_embeddings.cpu().mean(axis=0)
-                        embeddings.append(average.unsqueeze(0))
-
-                if len(embeddings) > 1:
-                    embedding = torch.cat(embeddings)
-                    user_embeddings[author] = embedding.mean(axis=0).numpy()
-                else:
-                    user_embeddings[author] = embeddings[0].squeeze().numpy()
-
+                        embeddings.append(post_embeddings.cpu())
                 
+                # Concatenate all embeddings before averaging
+                all_embeddings = torch.cat(embeddings)
+                user_embeddings[author] = all_embeddings.mean(axis=0).numpy()
 
 
                 if DEBUG:
@@ -192,7 +181,7 @@ if __name__ == '__main__':
                 # random sampling 
                 if random_sampling and len(all_sentences) > posts_per_author:
                     # Randomly sample sentences from the author
-                    all_sentences = np.random.choice(all_sentences, size=posts_per_author, replace=False)
+                    all_sentences = random.sample(all_sentences, k=posts_per_author)
 
                 # Tokenize sentences and break into batches of 64
                 batches_text = extract_batches(all_sentences, 64)

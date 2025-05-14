@@ -10,8 +10,8 @@ python src/ft_bert_no_verdicts.py \
 --sbert_dim=768 \
 --user_dim=768 \
 --model_name='sbert' \
---split_type='author' \
+--split_type='verdicts' \
 --situation='title' \
---authors_embedding_path='data/embeddings/user_post_embeddings_30.pkl' \
+--authors_embedding_path='data/embeddings/user_post_embeddings_5.pkl' \
 --path_to_data='data/' \
 --social_norm='true'

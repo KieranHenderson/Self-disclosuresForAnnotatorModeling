@@ -7,6 +7,6 @@ python src/users_sbert_embeddings_random.py \
 --dirname='data/amit_filtered_history/' \
 --output_dir='data/embeddings/' \
 --embed_sentences='false' \
---posts_per_author=15 \
---output_file_name='user_sent_embeddings_15' \
+--posts_per_author=5 \
+--output_file_name='user_post_embeddings_5' \
 --random_sampling='true' \

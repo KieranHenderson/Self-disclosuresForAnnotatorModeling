@@ -3,7 +3,7 @@
 python src/ft_bert_no_verdicts_demographics.py \
 --use_authors='true' \
 --use_demos='true' \
---demo_embedding_path='data/embeddings/identities_embeddings.pkl' \
+--demo_embedding_path='data/embeddings/demographic_embeddings.pkl' \
 --author_encoder='average' \
 --loss_type='focal' \
 --num_epochs=10 \
@@ -12,7 +12,7 @@ python src/ft_bert_no_verdicts_demographics.py \
 --sbert_dim=768 \
 --user_dim=768 \
 --model_name='sbert' \
---split_type='author' \
+--split_type='verdicts' \
 --situation='title' \
 --authors_embedding_path='data/embeddings/user_post_embeddings_5.pkl' \
 --path_to_data='data/' \
