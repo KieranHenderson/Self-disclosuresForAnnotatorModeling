@@ -11,7 +11,7 @@ python src/ft_bert_no_verdicts.py \
 --user_dim=768 \
 --model_name='sbert' \
 --split_type='verdicts' \
---situation='title' \
---authors_embedding_path='data/embeddings/user_post_embeddings_5.pkl' \
+--situation='text' \
+--authors_embedding_path='data/embeddings/user_sent_embeddings_5.pkl' \
 --path_to_data='data/' \
 --social_norm='true'

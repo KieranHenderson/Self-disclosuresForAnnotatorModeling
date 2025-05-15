@@ -74,6 +74,14 @@ if __name__ == '__main__':
     dataset = SocialNormDataset(social_comments, social_chemistry)
     authors = set(dataset.authorsToVerdicts.keys())
 
+    # # check if any authors == 'deleted'
+    # print("Checking for deleted authors")
+    # deleted_authors = [author for author in authors if author == 'deleted']
+    # if len(deleted_authors) > 0:
+    #     print("Found deleted authors in dataset")
+    #     print(deleted_authors)
+
+
     print(DEVICE)
     print(len(authors))
     # print(authors)
