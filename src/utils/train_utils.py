@@ -131,6 +131,7 @@ def get_verdicts_by_author_split(dataset):
     return train_verdicts, train_labels, val_verdicts, val_labels, test_verdicts, test_labels
 
 
+
 def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, demo_embedder=None, USE_DEMOS=False, return_predictions=False):
     accuracy_metric = evaluate2.load("accuracy")
     f1_metric = evaluate2.load("f1")
@@ -183,6 +184,87 @@ def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, datase
              'macro': f1_score(all_labels[1:], all_pred[1:], average='macro'),
                 'micro': f1_score(all_labels[1:], all_pred[1:], average='micro'), 
                 'binary': f1_score(all_labels[1:], all_pred[1:], average='binary')}
+
+
+
+
+def evaluate_similar(dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder,
+             demo_embedder=None, USE_DEMOS=False, return_predictions=False):
+    import evaluate as evaluate2
+    from sklearn.metrics import f1_score
+
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    accuracy_metric = evaluate2.load("accuracy")
+    f1_metric = evaluate2.load("f1")
+
+    model.eval()
+    if USE_AUTHORS and author_encoder == 'graph':
+        graph_model.eval()
+
+    all_ids = ['verdicts']
+    all_pred = ['predictions']
+    all_labels = ['gold labels']
+
+    for batch in dataloader:
+        verdicts_index = batch.pop("index")
+        author_node_idx = batch.pop("author_node_idx")
+        batch = {k: v.to(DEVICE) for k, v in batch.items()}
+        labels = batch.pop("labels")
+
+        with torch.no_grad():
+            if USE_AUTHORS and (author_encoder in {'average', 'attribution'}):
+                valid_embeddings = []
+                valid_masks = []
+                valid_labels = []
+
+                for i, idx in enumerate(verdicts_index):
+                    verdict_id = dataset.idToVerdict[idx.item()]
+                    try:
+                        emb = embedder.embed_verdict(verdict_id)
+                        valid_embeddings.append(emb)
+                        valid_masks.append(i)
+                        valid_labels.append(labels[i].item())
+                    except KeyError:
+                        logging.warning(f"⚠️ Verdict ID {verdict_id} not found in embeddings. Skipping.")
+
+                if len(valid_embeddings) == 0:
+                    continue
+
+                batch = {k: v[valid_masks].to(DEVICE) for k, v in batch.items()}
+                labels = torch.tensor(valid_labels, dtype=torch.long).to(DEVICE)
+                verdict_embeddings = torch.stack(valid_embeddings).to(DEVICE)
+                logits = model(batch, verdict_embeddings)
+
+            elif USE_AUTHORS and author_encoder == 'graph':
+                graph_output = graph_model(data.x.to(DEVICE), data.edge_index.to(DEVICE))
+                authors_embeddings = graph_output[author_node_idx.to(DEVICE)]
+                logits = model(batch, authors_embeddings)
+
+            else:
+                logits = model(batch)
+
+        predictions = torch.argmax(logits, dim=-1)
+        accuracy_metric.add_batch(predictions=predictions, references=labels)
+        f1_metric.add_batch(predictions=predictions, references=labels)
+        all_pred.extend(predictions.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+        all_ids.extend([dataset.idToVerdict[idx.item()] for idx in verdicts_index])
+
+    results_dict = {
+        'accuracy': accuracy_metric.compute()['accuracy'],
+        'f1_weighted': f1_metric.compute(average='weighted')['f1'],
+        'macro': f1_score(all_labels[1:], all_pred[1:], average='macro'),
+        'micro': f1_score(all_labels[1:], all_pred[1:], average='micro'),
+        'binary': f1_score(all_labels[1:], all_pred[1:], average='binary')
+    }
+
+    if return_predictions:
+        results_dict['results'] = list(zip(all_ids, all_pred, all_labels))
+
+    return results_dict
+
+
 
 
 #Mean Pooling - Take attention mask into account for correct averaging
