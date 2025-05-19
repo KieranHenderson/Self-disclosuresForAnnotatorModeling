@@ -117,7 +117,7 @@ if __name__ == '__main__':
     verdict_embeddings = {}
     for post_id in tqdm(dataset.postToVerdicts.keys(), desc="Generating verdict embeddings"):
         post_embedding = post_embeddings.get(post_id)
-        if post_emb is None:
+        if post_embedding is None:
             continue
         post_embedding = torch.tensor(post_embedding).unsqueeze(0).to(DEVICE)
 
