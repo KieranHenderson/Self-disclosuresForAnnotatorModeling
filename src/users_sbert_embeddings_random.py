@@ -25,6 +25,9 @@ from constants import *
 
 import random
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 parser = ArgumentParser()
 parser.add_argument("--path_to_data", dest="path_to_data", required=True, type=str)
 
@@ -42,6 +45,79 @@ using Sentence BERT for Annotators where the embeddings
 are averaged at the end to get the final representation.
 TODO: Update
 """
+
+def plot_author_distribution(authors_vocab, embed_sentences, output_dir):
+    """Plot distribution of authors by number of posts/sentences they have"""
+    # Calculate posts/sentences per author
+    author_counts = []
+    
+    for author, posts in authors_vocab.items():
+        if not posts:
+            continue
+            
+        if embed_sentences:
+            sentences = []
+            for text in posts:
+                if isinstance(text, (list, tuple)) and len(text) > 0:
+                    sentences.extend(sent_tokenize(str(text[0])))
+                elif isinstance(text, str):
+                    sentences.extend(sent_tokenize(text))
+            count = len(sentences)
+        else:
+            count = len(posts)
+        
+        if count > 0:
+            author_counts.append(count)
+    
+    print(author_counts[:50])
+
+    if not author_counts:
+        print("Warning: No authors with content found - cannot generate distribution plot")
+        return
+    
+    author_counts = np.array(author_counts)
+    
+    # Get unique content counts and how many authors have each count
+    unique_counts, num_authors = np.unique(author_counts, return_counts=True)
+    
+    # Calculate cumulative distribution
+    sorted_counts = np.sort(unique_counts)
+    cumulative_counts = [np.sum(author_counts >= c) for c in sorted_counts]
+    
+    # Plotting
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+    # Plot 1: Exact distribution
+    ax1.bar(unique_counts, num_authors, edgecolor='white')
+    ax1.set_xlabel('Number of ' + ('Sentences' if embed_sentences else 'Posts'))
+    ax1.set_ylabel('Number of Authors')
+    ax1.set_title('Distribution of Authors by Content Count')
+    ax1.set_xlim(0, 5000)
+
+    # Plot 2: Cumulative distribution
+    ax2.step(sorted_counts, cumulative_counts, where='post', color='orange')
+    ax2.set_xlabel('Minimum Number of ' + ('Sentences' if embed_sentences else 'Posts'))
+    ax2.set_ylabel('Number of Authors')
+    ax2.set_title('Authors with At Least X Content Items')
+    ax2.set_xlim(0, 5000)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    plot_path = os.path.join(output_dir, 'author_distribution.png')
+    plt.savefig(plot_path)
+    plt.close()
+    print(f"Saved author distribution plot to {plot_path}")
+
+    # Save data as CSV (clean and binless)
+    data_path = os.path.join(output_dir, 'author_distribution.csv')
+    pd.DataFrame({
+        'content_count': sorted_counts,
+        'num_authors': num_authors[np.argsort(unique_counts)],
+        'num_authors_at_least': cumulative_counts
+    }).to_csv(data_path, index=False)
+    print(f"Saved author distribution data to {data_path}")
+
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -93,14 +169,15 @@ if __name__ == '__main__':
         filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
         results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
         # results = extract_authors_vocab_AMIT(filenames[0], authors)
-    elif 'demographics' in args.dirname:
+    # elif 'demographics' in args.dirname:
+    else:
         print(f'Processing json files from directory {args.dirname}')
         filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
         results = Parallel(n_jobs=32)(delayed(extract_authors_demographics)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
-    else:
-        print(f'Processing text files from directory {args.dirname}')
-        filenames = sorted(glob.glob(os.path.join(args.dirname, '*')))
-        results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_notAMIT)(filename, authors) for filename in tqdm(filenames))
+    # else:
+    #     print(f'Processing text files from directory {args.dirname}')
+    #     filenames = sorted(glob.glob(os.path.join(args.dirname, '*')))
+    #     results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_notAMIT)(filename, authors) for filename in tqdm(filenames))
 
     print("Json files processed")
     print("Number of json files: {}".format(len(filenames)))
@@ -112,6 +189,8 @@ if __name__ == '__main__':
         authors_vocab.update_lists(r)
 
     print(len(authors_vocab))
+
+    plot_author_distribution(authors_vocab, embed_sentences, args.output_dir)
 
     print("Using {} model".format(args.bert_model))
 

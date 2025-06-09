@@ -10,6 +10,6 @@ python src/ft_bert_no_verdicts_topk.py \
 --model_name='sbert' \
 --split_type='verdicts' \
 --situation='text' \
---authors_embedding_path='data/final_embeddings/verdict_embeddings_postlevel_5.pkl' \
+--authors_embedding_path='data/final_embeddings/verdict_embeddings_attitudes.pkl' \
 --path_to_data='data/' \
 --social_norm='true'

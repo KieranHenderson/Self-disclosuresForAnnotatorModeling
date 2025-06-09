@@ -5,4 +5,5 @@ python src/verdict_embeddings.py \
 --output_dir='data/final_embeddings/' \
 --top_k=5 \
 --embed_sentences=false \
---output_file_name='verdict_embeddings_postlevel_5'
+--output_file_name='verdict_embeddings_postlevel_5' \
+--json_embeddings_path='data/manual/attitudes.json' \

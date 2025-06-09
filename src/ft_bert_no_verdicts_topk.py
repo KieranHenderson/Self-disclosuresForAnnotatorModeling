@@ -25,6 +25,9 @@ from tqdm.auto import tqdm
 from argparse import ArgumentParser
 import logging
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 TIMESTAMP = get_current_timestamp()
 
 np.random.seed(SEED)
@@ -93,6 +96,7 @@ if __name__ == '__main__':
     graph_checkpoint_dir = os.path.join(results_dir, f'best_models/{TIMESTAMP}_best_graphmodel.pt')
     
     authors_embedding_path = args.authors_embedding_path
+    print(f"Authors embedding path: {authors_embedding_path[40:]}")
     USE_AUTHORS = args.use_authors
     author_encoder = args.author_encoder
     social_norm = args.social_norm
@@ -368,15 +372,22 @@ if __name__ == '__main__':
     progress_bar = tqdm(range(num_training_steps))
     best_accuracy = 0
     best_f1 = 0
-    val_metrics = []
+
     train_loss = []
 
+    val_metrics = []
+    val_accuracies = []
+    val_f1_scores = []
+    train_losses = []  # This will store average loss per epoch
+    epochs = []
 
-    
     for epoch in range(num_epochs):
         model.train()
+        epoch_losses = []  # This will store losses for each batch in the current epoch
+        
         if USE_AUTHORS and author_encoder == 'graph': 
             graph_model.train()
+            
         for batch in train_dataloader:
             verdicts_index = batch.pop("index")
             author_node_idx = batch.pop("author_node_idx")
@@ -399,7 +410,7 @@ if __name__ == '__main__':
                 output = model(batch)
             
             loss = loss_fn(output, labels, samples_per_class_train, loss_type=loss_type)
-            train_loss.append(loss.item())
+            epoch_losses.append(loss.item())
             loss.backward()
             
             optimizer.step()
@@ -407,15 +418,44 @@ if __name__ == '__main__':
             optimizer.zero_grad()
             progress_bar.update(1)
         
+        # Calculate and store average epoch loss
+        avg_epoch_loss = sum(epoch_losses) / len(epoch_losses)
+        train_losses.append(avg_epoch_loss)
+        
         val_metric = evaluate_similar(eval_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder)
         val_metrics.append(val_metric)
+
+        # Store validation metrics
+        val_accuracies.append(val_metric['accuracy'])
+        val_f1_scores.append(val_metric['macro'])
+        epochs.append(epoch)
         
-        logging.info("Epoch {} **** Loss {} **** Metrics validation: {}".format(epoch, loss, val_metric))
+        logging.info("Epoch {} **** Loss {} **** Metrics validation: {}".format(epoch, avg_epoch_loss, val_metric))
         if val_metric['f1_weighted'] > best_f1:
             best_f1 = val_metric['f1_weighted']
             torch.save(model.state_dict(), checkpoint_dir)
             if USE_AUTHORS and author_encoder == 'graph':
-                torch.save(graph_model.state_dict(), graph_checkpoint_dir)   
+                torch.save(graph_model.state_dict(), graph_checkpoint_dir)
+    
+    # Plot and save the training results graph
+    plt.figure(figsize=(10, 5))
+    plt.plot(epochs, train_losses, label='Training Loss')
+    plt.plot(epochs, val_accuracies, label='Validation Accuracy', color='green')
+    plt.plot(epochs, val_f1_scores, label='Validation F1 Score', color='orange')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title(f'Loss vs Accuradcy vs Macro F1 scores Over Epochs{ authors_embedding_path[41:]}')
+    plt.legend()
+    loss_plot_path = os.path.join('results/graphs', f'{authors_embedding_path[41:-4]}_plot.png')
+    loss_plot_path1 = os.path.join('results', f'{authors_embedding_path[41:-4]}_plot.png')
+    plt.savefig(loss_plot_path)
+    plt.savefig(loss_plot_path1)
+    plt.close()
+
+    # # Add plot paths to the result logs
+    # result_logs['loss_plot_path'] = loss_plot_path
+    # result_logs['accuracy_plot_path'] = acc_plot_path
+    # result_logs['f1_plot_path'] = f1_plot_path
 
    
            

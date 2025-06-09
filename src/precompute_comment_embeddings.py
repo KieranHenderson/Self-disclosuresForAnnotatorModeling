@@ -60,9 +60,19 @@ if __name__ == '__main__':
     model = AutoModel.from_pretrained(args.bert_model).to(DEVICE)
     model.eval()
 
-    filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
-    logging.info(f"Processing {len(filenames)} JSON files from {args.dirname}")
-    results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(f, authors) for f in tqdm(filenames))
+    # filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
+    # logging.info(f"Processing {len(filenames)} JSON files from {args.dirname}")
+    # results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(f, authors) for f in tqdm(filenames))
+
+    if 'amit' in args.dirname:
+        print(f'Processing json files from directory {args.dirname}')
+        filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
+        results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
+    else:
+        print(f'Processing json files from directory {args.dirname}')
+        filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
+        results = Parallel(n_jobs=32)(delayed(extract_authors_demographics)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
+
     authors_vocab = ListDict()
     for r in results:
         authors_vocab.update_lists(r)
