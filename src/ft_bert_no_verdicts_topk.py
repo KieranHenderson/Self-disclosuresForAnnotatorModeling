@@ -1,32 +1,29 @@
 from verdict_embedder import VerdictEmbedder
 
-import glob
 import sys
 print(sys.executable)
-from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 
 import torch
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, BertTokenizerFast, DataCollatorWithPadding, get_scheduler
+from transformers import AutoTokenizer, DataCollatorWithPadding, get_scheduler
 from datasets import DatasetDict, Dataset, Features, Value
-from torch_geometric.data import Data
 
 
-from dataset import GraphData, SocialNormDataset, VerdictDataset
+from dataset import SocialNormDataset
 from utils.read_files import *
 from utils.utils import *
 from utils.loss_functions import *
 from utils.train_utils import *
-from models import GAT, JudgeBert, SentBertClassifier
+from models import SentBertClassifier
 from constants import *
 from tqdm.auto import tqdm
 from argparse import ArgumentParser
 import logging
+from constants import *
 
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 TIMESTAMP = get_current_timestamp()
 
@@ -84,60 +81,33 @@ if __name__ == '__main__':
     results_dir = args.results_dir
     verdicts_dir = args.verdicts_dir
     graph_dim = args.graph_dim
-    # NOTE: had to change b/c mixed forward and backward slash
-    #checkpoint_dir = os.path.join(results_dir, 'best_models', f'{TIMESTAMP}_best_model_sampled.pt')
-    #script_dir = os.path.dirname(os.path.abspath(__file__))
-    #results_dir = os.path.abspath('../results')
-    #results_dir = os.path.join(script_dir, 'results')
-    #checkpoint_dir = os.path.join(r'C:\Users\User\PycharmProjects\perspectivism-personalization\results', 'best_models', f'{TIMESTAMP}_best_model_sampled.pt')
     checkpoint_dir = os.path.join('results/best_models', f'{TIMESTAMP}_best_model_sampled.pt')
-    #checkpoint_dir = os.path.normpath(os.path.join(results_dir, 'best_models', f'{TIMESTAMP}_best_model_sampled.pt'))
-    #checkpoint_dir = os.path.join(results_dir, f'best_models/{TIMESTAMP}_best_model_sampled.pt')
     graph_checkpoint_dir = os.path.join(results_dir, f'best_models/{TIMESTAMP}_best_graphmodel.pt')
-    
     authors_embedding_path = args.authors_embedding_path
     print(f"Authors embedding path: {authors_embedding_path[40:]}")
     USE_AUTHORS = args.use_authors
     author_encoder = args.author_encoder
     social_norm = args.social_norm
+    split_type = args.split_type
+
     if USE_AUTHORS:
         assert author_encoder in {'average', 'graph', 'attribution'}
     else:
         assert author_encoder.lower() == 'none' or author_encoder.lower() == 'priming'  or author_encoder.lower() == 'user_id'
-        
-    split_type = args.split_type
-    
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     
     logging.info("Device {}".format(DEVICE))
 
-    # NOTE: same note as before
-    # social_norm = True #@TODO: Fixed for EMNLP, should make it a parameter 
-    # replaced with parameter
-    if social_norm:
-        social_chemistry = pd.read_pickle(path_to_data + 'social_chemistry_clean_with_fulltexts')
-        print(social_chemistry.shape)
-        # save to csv
-        social_chemistry.to_csv(path_to_data + 'social_chemistry_clean_with_fulltexts.csv', index=False)
+    social_chemistry = pd.read_pickle(path_to_data + 'social_chemistry_clean_with_fulltexts')
+    print(social_chemistry.shape)
+    # save to csv
+    social_chemistry.to_csv(path_to_data + 'social_chemistry_clean_with_fulltexts.csv', index=False)
 
-        with open(path_to_data+'social_norms_clean.csv', encoding="utf8") as file:
-            social_comments = pd.read_csv(file)
+    with open(path_to_data+'social_norms_clean.csv', encoding="utf8") as file:
+        social_comments = pd.read_csv(file)
 
-        print(social_comments.shape)
-        
-        dataset = SocialNormDataset(social_comments, social_chemistry)
-    else:
-        logging.info(f'Processing json files from directory {dirname}')
-        authors = read_authors()
-        filenames = sorted(glob.glob(os.path.join(dirname, '*.json')))
-        results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
-        
-        authors_vocab = ListDict()
-        for r in results:
-            authors_vocab.update_lists(r)
-            
-        dataset = VerdictDataset(authors_vocab)
+    print(social_comments.shape)
+    
+    dataset = SocialNormDataset(social_comments, social_chemistry)
     
     
     if split_type == 'sit':
@@ -150,11 +120,9 @@ if __name__ == '__main__':
         logging.info("Split type {}".format(split_type))
         verdict_ids = list(dataset.verdictToLabel.keys())
         labels = list(dataset.verdictToLabel.values())
-        train_verdicts, test_verdicts, train_labels, test_labels = train_test_split(verdict_ids, labels, test_size=0.2, 
-                                                                            random_state=SEED)
-
-        train_verdicts, val_verdicts, train_labels, val_labels = train_test_split(train_verdicts, train_labels, test_size=0.15, 
-                                                                            random_state=SEED)
+        # TODO Check
+        train_verdicts, test_verdicts, train_labels, test_labels = train_test_split(verdict_ids, labels, test_size=0.2, random_state=SEED)
+        train_verdicts, val_verdicts, train_labels, val_labels = train_test_split(train_verdicts, train_labels, test_size=0.15, random_state=SEED)
     else:
         raise Exception("Split type is wrong, it should be either sit or author")    
    
@@ -166,27 +134,10 @@ if __name__ == '__main__':
     test_size_stats = "Test Size: {}, NTA labels {}, YTA labels {}".format(len(test_verdicts), test_labels.count(0), test_labels.count(1))
     logging.info(test_size_stats)
     
-    if author_encoder == 'priming':
-        authorToSampledText = pkl.load(open(os.path.join(path_to_data, 'priming_text.pkl'), 'rb'))
-    
-    graph_model = None
-    data = None
     if USE_AUTHORS and (author_encoder == 'average' or author_encoder == 'attribution'):
         print(f"Loaded authors embeddings from {authors_embedding_path}")
         # embedder = AuthorsEmbedder(embeddings_path=authors_embedding_path, dim=args.user_dim)
         embedder = VerdictEmbedder(embeddings_path=authors_embedding_path)
-    elif USE_AUTHORS and author_encoder == 'graph':
-        logging.info("Creating graph")
-        embedder = pkl.load(open(os.path.join(path_to_data, 'embeddings/emnlp/sbert_authorAMIT.pkl'), 'rb'))
-        authorToAuthor = json.load(open(os.path.join(path_to_data, 'authors_interactions_in_history.json'), 'r'))
-        graphData, edge_index = create_author_graph(GraphData(), dataset, embedder, authorToAuthor, limit_connections=100)
-        data = Data(x=torch.stack(graphData.representations), edge_index=edge_index.contiguous())
-        
-        if args.concat:
-            graph_model = GAT(graph_dim, graph_dim, dropout=0.2, heads=2, concat=True).to(DEVICE)
-        else:
-            graph_model = GAT(graph_dim, graph_dim, dropout=0.2, heads=2, concat=False).to(DEVICE)
-
     else:
         embedder = None
     
@@ -209,24 +160,11 @@ if __name__ == '__main__':
             if author != 'Judgement_Bot_AITA':
                 raw_dataset['train']['index'].append(dataset.verdictToId[verdict])
                 
-                if author_encoder == 'priming':
-                    author = dataset.verdictToAuthor[verdict]
-                    priming_text = ''
-                    if author in authorToSampledText:
-                        priming_text = authorToSampledText[author]
-                    raw_dataset['train']['text'].append(priming_text + ' [SEP] ' + situation_title)
-                elif author_encoder == 'user_id':
-                    author = dataset.verdictToAuthor[verdict]
-                    raw_dataset['train']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
-                else:
-                    raw_dataset['train']['text'].append(situation_title)
-                    
+                raw_dataset['train']['text'].append(situation_title)
+                   
                 raw_dataset['train']['label'].append(train_labels[i])
                 
-                if USE_AUTHORS and author_encoder == 'graph':
-                    raw_dataset['train']['author_node_idx'].append(graphData.nodesToId[dataset.verdictToAuthor[verdict]])
-                else:
-                    raw_dataset['train']['author_node_idx'].append(-1)
+                raw_dataset['train']['author_node_idx'].append(-1)
                     
                 assert train_labels[i] == dataset.verdictToLabel[verdict] 
         
@@ -242,25 +180,12 @@ if __name__ == '__main__':
             
             if author != 'Judgement_Bot_AITA': 
                 raw_dataset['val']['index'].append(dataset.verdictToId[verdict])
-                # Priming logic
-                if author_encoder == 'priming':
-                    author = dataset.verdictToAuthor[verdict]
-                    priming_text = ''
-                    if author in authorToSampledText:
-                        priming_text = authorToSampledText[author]
-                    raw_dataset['val']['text'].append(priming_text + ' [SEP] ' + situation_title)
-                elif author_encoder == 'user_id':
-                    author = dataset.verdictToAuthor[verdict]
-                    raw_dataset['val']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
-                else:
-                    raw_dataset['val']['text'].append(situation_title)
+                
+                raw_dataset['val']['text'].append(situation_title)
                 
                 raw_dataset['val']['label'].append(val_labels[i])
                 
-                if USE_AUTHORS and author_encoder == 'graph':
-                    raw_dataset['val']['author_node_idx'].append(graphData.nodesToId[dataset.verdictToAuthor[verdict]])
-                else:
-                    raw_dataset['val']['author_node_idx'].append(-1)
+                raw_dataset['val']['author_node_idx'].append(-1)
                 
                 assert val_labels[i] == dataset.verdictToLabel[verdict]          
         
@@ -276,26 +201,12 @@ if __name__ == '__main__':
             
             if author != 'Judgement_Bot_AITA': 
                 raw_dataset['test']['index'].append(dataset.verdictToId[verdict])
-                # Priming logic
-                if author_encoder == 'priming':
-                    author = dataset.verdictToAuthor[verdict]
-                    priming_text = ''
-                    if author in authorToSampledText:
-                        priming_text = authorToSampledText[author]
-                    # priming text contains the [SEP] in the end by itself
-                    raw_dataset['test']['text'].append(priming_text + ' [SEP] ' + situation_title)
-                elif author_encoder == 'user_id':
-                    author = dataset.verdictToAuthor[verdict]
-                    raw_dataset['test']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
-                else:
-                    raw_dataset['test']['text'].append(situation_title)
+                
+                raw_dataset['test']['text'].append(situation_title)
                     
                 raw_dataset['test']['label'].append(test_labels[i])
                 
-                if USE_AUTHORS and author_encoder == 'graph':   
-                    raw_dataset['test']['author_node_idx'].append(graphData.nodesToId[dataset.verdictToAuthor[verdict]])
-                else:
-                    raw_dataset['test']['author_node_idx'].append(-1)
+                raw_dataset['test']['author_node_idx'].append(-1)
                 
                 assert test_labels[i] == dataset.verdictToLabel[verdict] 
     
@@ -304,10 +215,10 @@ if __name__ == '__main__':
         logging.info("Training with SBERT, model name is {}".format(model_name))
         tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
         model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim)
-    elif model_name == 'judge_bert':
-        logging.info("Training with Judge Bert, model name is {}".format(model_name))
-        tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
-        model = JudgeBert()
+    # elif model_name == 'judge_bert':
+    #     logging.info("Training with Judge Bert, model name is {}".format(model_name))
+    #     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+    #     model = JudgeBert()
     else:
         raise Exception('Wrong model name')
     
@@ -317,8 +228,7 @@ if __name__ == '__main__':
     ds = DatasetDict()
 
     for split, d in raw_dataset.items():
-        ds[split] = Dataset.from_dict(mapping=d, features=Features({'label': Value(dtype='int64'), 
-                                                                        'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
+        ds[split] = Dataset.from_dict(mapping=d, features=Features({'label': Value(dtype='int64'), 'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
     
     def tokenize_function(example):
         return tokenizer(example["text"], truncation=True)
@@ -332,10 +242,7 @@ if __name__ == '__main__':
     tokenized_dataset.set_format("torch")
     
     batch_size = args.batch_size
-    #class_sample_count = [train_labels.count(0), train_labels.count(1)]
-    #weights = 1 / torch.Tensor(class_sample_count)
-    #sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, batch_size)
-    
+
     train_dataloader = DataLoader(
         tokenized_dataset["train"], batch_size=batch_size, collate_fn=data_collator, shuffle = True
     )
@@ -347,15 +254,7 @@ if __name__ == '__main__':
         tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
     )
 
-    if USE_AUTHORS and author_encoder == 'graph':
-        logging.info("Grouping parameters")
-        optimizer_grouped_parameters = [
-            {'params': [p for n, p in model.named_parameters()], 'weight_decay': 0.01},
-            {'params': [p for n, p in graph_model.named_parameters()], 'weight_decay': 0.0}
-        ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
-    else:
-        optimizer = AdamW(model.parameters(), lr=args.learning_rate)
+    optimizer = AdamW(model.parameters(), lr=args.learning_rate)
     
     num_epochs = args.num_epochs
     num_training_steps = num_epochs * len(train_dataloader)
@@ -384,9 +283,6 @@ if __name__ == '__main__':
     for epoch in range(num_epochs):
         model.train()
         epoch_losses = []  # This will store losses for each batch in the current epoch
-        
-        if USE_AUTHORS and author_encoder == 'graph': 
-            graph_model.train()
             
         for batch in train_dataloader:
             verdicts_index = batch.pop("index")
@@ -401,12 +297,7 @@ if __name__ == '__main__':
                     logging.warning(f"Missing embedding for verdict_id {e}. Skipping this batch.")
                     continue
                 output = model(batch, verdict_embeddings)
-
-            elif USE_AUTHORS and author_encoder == 'graph':
-                graph_output = graph_model(data.x.to(DEVICE), data.edge_index.to(DEVICE))
-                authors_embeddings = graph_output[author_node_idx.to(DEVICE)]
-                output = model(batch, authors_embeddings)
-            else:
+            else: 
                 output = model(batch)
             
             loss = loss_fn(output, labels, samples_per_class_train, loss_type=loss_type)
@@ -422,7 +313,7 @@ if __name__ == '__main__':
         avg_epoch_loss = sum(epoch_losses) / len(epoch_losses)
         train_losses.append(avg_epoch_loss)
         
-        val_metric = evaluate_similar(eval_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder)
+        val_metric = evaluate_similar(eval_dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder)
         val_metrics.append(val_metric)
 
         # Store validation metrics
@@ -434,8 +325,6 @@ if __name__ == '__main__':
         if val_metric['f1_weighted'] > best_f1:
             best_f1 = val_metric['f1_weighted']
             torch.save(model.state_dict(), checkpoint_dir)
-            if USE_AUTHORS and author_encoder == 'graph':
-                torch.save(graph_model.state_dict(), graph_checkpoint_dir)
     
     # Plot and save the training results graph
     plt.figure(figsize=(10, 5))
@@ -452,22 +341,13 @@ if __name__ == '__main__':
     plt.savefig(loss_plot_path1)
     plt.close()
 
-    # # Add plot paths to the result logs
-    # result_logs['loss_plot_path'] = loss_plot_path
-    # result_logs['accuracy_plot_path'] = acc_plot_path
-    # result_logs['f1_plot_path'] = f1_plot_path
 
-   
-           
 
     logging.info("Evaluating")
     model.load_state_dict(torch.load(checkpoint_dir))
     model.to(DEVICE)
-    if USE_AUTHORS and author_encoder == 'graph':
-        graph_model.load_state_dict(torch.load(graph_checkpoint_dir))
-        graph_model.to(DEVICE)
-        
-    test_metrics = evaluate_similar(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
+
+    test_metrics = evaluate_similar(test_dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
 
     results = test_metrics.pop('results')
     logging.info(test_metrics)

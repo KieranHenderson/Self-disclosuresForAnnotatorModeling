@@ -30,7 +30,8 @@ def focal_loss(labels, logits, alpha, gamma):
     weighted_loss = alpha * loss
     focal_loss = torch.sum(weighted_loss)
 
-    focal_loss /= torch.sum(labels)
+    #focal_loss /= torch.sum(labels)
+    focal_loss /= labels.size(0) # Normalize by batch size instead of number of positive examples
     return focal_loss
 
 

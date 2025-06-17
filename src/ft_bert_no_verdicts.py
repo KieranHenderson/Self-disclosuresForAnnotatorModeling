@@ -12,12 +12,12 @@ from datasets import DatasetDict, Dataset, Features, Value
 from torch_geometric.data import Data
 
 
-from dataset import GraphData, SocialNormDataset, VerdictDataset
+from dataset import SocialNormDataset
 from utils.read_files import *
 from utils.utils import *
 from utils.loss_functions import *
 from utils.train_utils import *
-from models import GAT, JudgeBert, SentBertClassifier
+from models import SentBertClassifier
 from constants import *
 from tqdm.auto import tqdm
 from argparse import ArgumentParser
@@ -107,29 +107,18 @@ if __name__ == '__main__':
     # NOTE: same note as before
     # social_norm = True #@TODO: Fixed for EMNLP, should make it a parameter 
     # replaced with parameter
-    if social_norm:
-        social_chemistry = pd.read_pickle(path_to_data + 'social_chemistry_clean_with_fulltexts')
-        print(social_chemistry.shape)
-        # save to csv
-        social_chemistry.to_csv(path_to_data + 'social_chemistry_clean_with_fulltexts.csv', index=False)
+    social_chemistry = pd.read_pickle(path_to_data + 'social_chemistry_clean_with_fulltexts')
+    print(social_chemistry.shape)
+    # save to csv
+    social_chemistry.to_csv(path_to_data + 'social_chemistry_clean_with_fulltexts.csv', index=False)
 
-        with open(path_to_data+'social_norms_clean.csv', encoding="utf8") as file:
-            social_comments = pd.read_csv(file)
+    with open(path_to_data+'social_norms_clean.csv', encoding="utf8") as file:
+        social_comments = pd.read_csv(file)
 
-        print(social_comments.shape)
-        
-        dataset = SocialNormDataset(social_comments, social_chemistry)
-    else:
-        logging.info(f'Processing json files from directory {dirname}')
-        authors = read_authors()
-        filenames = sorted(glob.glob(os.path.join(dirname, '*.json')))
-        results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
-        
-        authors_vocab = ListDict()
-        for r in results:
-            authors_vocab.update_lists(r)
-            
-        dataset = VerdictDataset(authors_vocab)
+    print(social_comments.shape)
+    
+    dataset = SocialNormDataset(social_comments, social_chemistry)
+
     
     
     if split_type == 'sit':
@@ -158,26 +147,12 @@ if __name__ == '__main__':
     test_size_stats = "Test Size: {}, NTA labels {}, YTA labels {}".format(len(test_verdicts), test_labels.count(0), test_labels.count(1))
     logging.info(test_size_stats)
     
-    if author_encoder == 'priming':
-        authorToSampledText = pkl.load(open(os.path.join(path_to_data, 'priming_text.pkl'), 'rb'))
-    
     graph_model = None
     data = None
+
     if USE_AUTHORS and (author_encoder == 'average' or author_encoder == 'attribution'):
         print(f"Loaded authors embeddings from {authors_embedding_path}")
         embedder = AuthorsEmbedder(embeddings_path=authors_embedding_path, dim=args.user_dim)
-    elif USE_AUTHORS and author_encoder == 'graph':
-        logging.info("Creating graph")
-        embedder = pkl.load(open(os.path.join(path_to_data, 'embeddings/emnlp/sbert_authorAMIT.pkl'), 'rb'))
-        authorToAuthor = json.load(open(os.path.join(path_to_data, 'authors_interactions_in_history.json'), 'r'))
-        graphData, edge_index = create_author_graph(GraphData(), dataset, embedder, authorToAuthor, limit_connections=100)
-        data = Data(x=torch.stack(graphData.representations), edge_index=edge_index.contiguous())
-        
-        if args.concat:
-            graph_model = GAT(graph_dim, graph_dim, dropout=0.2, heads=2, concat=True).to(DEVICE)
-        else:
-            graph_model = GAT(graph_dim, graph_dim, dropout=0.2, heads=2, concat=False).to(DEVICE)
-
     else:
         embedder = None
     
@@ -200,13 +175,7 @@ if __name__ == '__main__':
             if author != 'Judgement_Bot_AITA':
                 raw_dataset['train']['index'].append(dataset.verdictToId[verdict])
                 
-                if author_encoder == 'priming':
-                    author = dataset.verdictToAuthor[verdict]
-                    priming_text = ''
-                    if author in authorToSampledText:
-                        priming_text = authorToSampledText[author]
-                    raw_dataset['train']['text'].append(priming_text + ' [SEP] ' + situation_title)
-                elif author_encoder == 'user_id':
+                if author_encoder == 'user_id':
                     author = dataset.verdictToAuthor[verdict]
                     raw_dataset['train']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
                 else:
@@ -214,10 +183,8 @@ if __name__ == '__main__':
                     
                 raw_dataset['train']['label'].append(train_labels[i])
                 
-                if USE_AUTHORS and author_encoder == 'graph':
-                    raw_dataset['train']['author_node_idx'].append(graphData.nodesToId[dataset.verdictToAuthor[verdict]])
-                else:
-                    raw_dataset['train']['author_node_idx'].append(-1)
+                
+                raw_dataset['train']['author_node_idx'].append(-1)
                     
                 assert train_labels[i] == dataset.verdictToLabel[verdict] 
         
@@ -234,13 +201,7 @@ if __name__ == '__main__':
             if author != 'Judgement_Bot_AITA': 
                 raw_dataset['val']['index'].append(dataset.verdictToId[verdict])
                 # Priming logic
-                if author_encoder == 'priming':
-                    author = dataset.verdictToAuthor[verdict]
-                    priming_text = ''
-                    if author in authorToSampledText:
-                        priming_text = authorToSampledText[author]
-                    raw_dataset['val']['text'].append(priming_text + ' [SEP] ' + situation_title)
-                elif author_encoder == 'user_id':
+                if author_encoder == 'user_id':
                     author = dataset.verdictToAuthor[verdict]
                     raw_dataset['val']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
                 else:
@@ -248,10 +209,7 @@ if __name__ == '__main__':
                 
                 raw_dataset['val']['label'].append(val_labels[i])
                 
-                if USE_AUTHORS and author_encoder == 'graph':
-                    raw_dataset['val']['author_node_idx'].append(graphData.nodesToId[dataset.verdictToAuthor[verdict]])
-                else:
-                    raw_dataset['val']['author_node_idx'].append(-1)
+                raw_dataset['val']['author_node_idx'].append(-1)
                 
                 assert val_labels[i] == dataset.verdictToLabel[verdict]          
         
@@ -268,14 +226,7 @@ if __name__ == '__main__':
             if author != 'Judgement_Bot_AITA': 
                 raw_dataset['test']['index'].append(dataset.verdictToId[verdict])
                 # Priming logic
-                if author_encoder == 'priming':
-                    author = dataset.verdictToAuthor[verdict]
-                    priming_text = ''
-                    if author in authorToSampledText:
-                        priming_text = authorToSampledText[author]
-                    # priming text contains the [SEP] in the end by itself
-                    raw_dataset['test']['text'].append(priming_text + ' [SEP] ' + situation_title)
-                elif author_encoder == 'user_id':
+                if author_encoder == 'user_id':
                     author = dataset.verdictToAuthor[verdict]
                     raw_dataset['test']['text'].append('[' + author + ']' + ' [SEP] ' + situation_title)
                 else:
@@ -283,10 +234,7 @@ if __name__ == '__main__':
                     
                 raw_dataset['test']['label'].append(test_labels[i])
                 
-                if USE_AUTHORS and author_encoder == 'graph':   
-                    raw_dataset['test']['author_node_idx'].append(graphData.nodesToId[dataset.verdictToAuthor[verdict]])
-                else:
-                    raw_dataset['test']['author_node_idx'].append(-1)
+                raw_dataset['test']['author_node_idx'].append(-1)
                 
                 assert test_labels[i] == dataset.verdictToLabel[verdict] 
     
@@ -295,10 +243,6 @@ if __name__ == '__main__':
         logging.info("Training with SBERT, model name is {}".format(model_name))
         tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
         model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim)
-    elif model_name == 'judge_bert':
-        logging.info("Training with Judge Bert, model name is {}".format(model_name))
-        tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
-        model = JudgeBert()
     else:
         raise Exception('Wrong model name')
     
@@ -338,15 +282,7 @@ if __name__ == '__main__':
         tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
     )
 
-    if USE_AUTHORS and author_encoder == 'graph':
-        logging.info("Grouping parameters")
-        optimizer_grouped_parameters = [
-            {'params': [p for n, p in model.named_parameters()], 'weight_decay': 0.01},
-            {'params': [p for n, p in graph_model.named_parameters()], 'weight_decay': 0.0}
-        ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
-    else:
-        optimizer = AdamW(model.parameters(), lr=args.learning_rate)
+    optimizer = AdamW(model.parameters(), lr=args.learning_rate)
     
     num_epochs = args.num_epochs
     num_training_steps = num_epochs * len(train_dataloader)
@@ -369,8 +305,6 @@ if __name__ == '__main__':
     
     for epoch in range(num_epochs):
         model.train()
-        if USE_AUTHORS and author_encoder == 'graph': 
-            graph_model.train()
         for batch in train_dataloader:
             verdicts_index = batch.pop("index")
             author_node_idx = batch.pop("author_node_idx")
@@ -379,10 +313,6 @@ if __name__ == '__main__':
             
             if USE_AUTHORS and  (author_encoder == 'average' or author_encoder == 'attribution'):
                 authors_embeddings = torch.stack([embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
-                output = model(batch, authors_embeddings)
-            elif USE_AUTHORS and author_encoder == 'graph':
-                graph_output = graph_model(data.x.to(DEVICE), data.edge_index.to(DEVICE))
-                authors_embeddings = graph_output[author_node_idx.to(DEVICE)]
                 output = model(batch, authors_embeddings)
             else:
                 output = model(batch)
@@ -402,20 +332,15 @@ if __name__ == '__main__':
         logging.info("Epoch {} **** Loss {} **** Metrics validation: {}".format(epoch, loss, val_metric))
         if val_metric['f1_weighted'] > best_f1:
             best_f1 = val_metric['f1_weighted']
-            torch.save(model.state_dict(), checkpoint_dir)
-            if USE_AUTHORS and author_encoder == 'graph':
-                torch.save(graph_model.state_dict(), graph_checkpoint_dir)        
+            torch.save(model.state_dict(), checkpoint_dir)  
         
               
 
     logging.info("Evaluating")
     model.load_state_dict(torch.load(checkpoint_dir))
     model.to(DEVICE)
-    if USE_AUTHORS and author_encoder == 'graph':
-        graph_model.load_state_dict(torch.load(graph_checkpoint_dir))
-        graph_model.to(DEVICE)
         
-    test_metrics = evaluate(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
+    test_metrics = evaluate(eval_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
     results = test_metrics.pop('results')
     logging.info(test_metrics)
     
@@ -447,11 +372,3 @@ if __name__ == '__main__':
                                   f'{TIMESTAMP}.json')
     with open(res_file, mode='w') as f:
         json.dump(result_logs, f, cls=NpEncoder, indent=2)
-
-    
-
-        
-    
-    
-
-    

@@ -6,15 +6,12 @@ from tqdm import tqdm
 import pickle as pkl
 import sys
 
-from sentence_transformers import SentenceTransformer
 import torch
 from transformers import AutoTokenizer, AutoModel
 import torch
 import torch.nn.functional as F
-import numpy as np
 from argparse import ArgumentParser
 from dataset import SocialNormDataset
-from models import MLPAttribution
 
 from utils.read_files import *
 from utils.train_utils import mean_pooling
@@ -52,11 +49,6 @@ if __name__ == '__main__':
         gender_authors = set(gender_df.author)
         authors = gender_authors.intersection(age_authors)
     else:
-        # social_chemistry = pd.read_pickle(path_to_data +'social_chemistry_clean_with_fulltexts.gzip', compression='gzip')
-        #
-        # with open(path_to_data+'social_norms_clean.csv') as file:
-        #     social_comments = pd.read_csv(file)
-
         # NOTE: social_chemistry ends up getting passed into SocialNormDataset (dataset.py),
         # so I guessed that social_chemistry_clean_with_fulltexts_and_authors is
         # the right file (diff names from data folder, social_chemistry_posts + not gzip)
@@ -91,9 +83,9 @@ if __name__ == '__main__':
         results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
         # results = extract_authors_vocab_AMIT(filenames[0], authors)
     else:
-        print(f'Processing text files from directory {args.dirname}')
-        filenames = sorted(glob.glob(os.path.join(args.dirname, '*')))
-        results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_notAMIT)(filename, authors) for filename in tqdm(filenames))
+        print(f'Processing json files from directory {args.dirname}')
+        filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
+        results = Parallel(n_jobs=32)(delayed(extract_authors_demographics)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
 
     # merge results
     print("Merging results")

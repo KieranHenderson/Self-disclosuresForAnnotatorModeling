@@ -129,18 +129,7 @@ if __name__ == '__main__':
 
     print("Posts per author: {}".format(posts_per_author))
 
-    # sys.stdout = open("console_output.txt", "w")
-
-    # NOTE: social_chemistry ends up getting passed into SocialNormDataset (dataset.py),
-    # so I guessed that social_chemistry_clean_with_fulltexts_and_authors is
-    # the right file (diff names from data folder, social_chemistry_posts + not gzip)
-    # because in SocialNormDataset, social_chemistry uses fulltext, situation & post id
-    # columns which social_chemistry_clean_with_fulltexts has
     social_chemistry = pd.read_pickle(path_to_data +'social_chemistry_clean_with_fulltexts')
-
-    # TODO: had to add encoding="utf8" here -- was getting UnicodeDecodeError otherwise
-    # NOTE: same thing down here, this is the social_comments_filtered dataset
-    # I assume this is the right one (renamed it) b/c it matches with the columns
     with open(path_to_data+'social_norms_clean.csv', encoding="utf8") as file:
         social_comments = pd.read_csv(file)
 
@@ -150,17 +139,8 @@ if __name__ == '__main__':
     dataset = SocialNormDataset(social_comments, social_chemistry)
     authors = set(dataset.authorsToVerdicts.keys())
 
-    # # check if any authors == 'deleted'
-    # print("Checking for deleted authors")
-    # deleted_authors = [author for author in authors if author == 'deleted']
-    # if len(deleted_authors) > 0:
-    #     print("Found deleted authors in dataset")
-    #     print(deleted_authors)
-
-
     print(DEVICE)
     print(len(authors))
-    # print(authors)
 
 
 
@@ -168,16 +148,10 @@ if __name__ == '__main__':
         print(f'Processing json files from directory {args.dirname}')
         filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
         results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
-        # results = extract_authors_vocab_AMIT(filenames[0], authors)
-    # elif 'demographics' in args.dirname:
     else:
         print(f'Processing json files from directory {args.dirname}')
         filenames = sorted(glob.glob(os.path.join(args.dirname, '*.json')))
         results = Parallel(n_jobs=32)(delayed(extract_authors_demographics)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
-    # else:
-    #     print(f'Processing text files from directory {args.dirname}')
-    #     filenames = sorted(glob.glob(os.path.join(args.dirname, '*')))
-    #     results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_notAMIT)(filename, authors) for filename in tqdm(filenames))
 
     print("Json files processed")
     print("Number of json files: {}".format(len(filenames)))

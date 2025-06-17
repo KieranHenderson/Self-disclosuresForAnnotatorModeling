@@ -1,7 +1,7 @@
 import torch 
 
 # define device
-CUDA = 'cuda' # NOTE: changed this to 0 b/c of CUDA ordinal error
+CUDA = 'cuda:3' # NOTE: changed this to 0 b/c of CUDA ordinal error
 CPU = 'cpu'
 DEVICE = torch.device(CUDA if torch.cuda.is_available() else CPU)
 SEED = 1234

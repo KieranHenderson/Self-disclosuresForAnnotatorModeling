@@ -8,46 +8,46 @@ from torch_geometric.nn import GATConv, GCNConv
 import torch.nn.functional as F
 
 
-class MLPAttribution(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super().__init__()
-        self.linear1 = nn.Linear(input_dim, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, output_dim)
-        self.relu = nn.ReLU()
+# class MLPAttribution(nn.Module):
+#     def __init__(self, input_dim, hidden_dim, output_dim):
+#         super().__init__()
+#         self.linear1 = nn.Linear(input_dim, hidden_dim)
+#         self.linear2 = nn.Linear(hidden_dim, output_dim)
+#         self.relu = nn.ReLU()
         
-    def forward(self, input):
-        output = self.relu(self.linear1(input))
-        return self.linear2(F.dropout(output, p=0.2, training=self.training))
+#     def forward(self, input):
+#         output = self.relu(self.linear1(input))
+#         return self.linear2(F.dropout(output, p=0.2, training=self.training))
 
 
-class JudgeBert(nn.Module):
-    def __init__(self , dim=768):
-        super().__init__()
-        self.bert = BertModel.from_pretrained("bert-base-uncased")
-        self.dropout = nn.Dropout(0.1)
-        self.linear = nn.Linear(dim, 2)
+# class JudgeBert(nn.Module):
+#     def __init__(self , dim=768):
+#         super().__init__()
+#         self.bert = BertModel.from_pretrained("bert-base-uncased")
+#         self.dropout = nn.Dropout(0.1)
+#         self.linear = nn.Linear(dim, 2)
         
     
-    def forward(self, input):
-        bert_output = self.bert(**input)
-        output = self.linear(self.dropout(bert_output.pooler_output))
-        return output
+#     def forward(self, input):
+#         bert_output = self.bert(**input)
+#         output = self.linear(self.dropout(bert_output.pooler_output))
+#         return output
     
     
-    def size(self):
-        return sum(p.numel() for p in self.parameters())
+#     def size(self):
+#         return sum(p.numel() for p in self.parameters())
 
 
-class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super().__init__()
-        self.linear1 = nn.Linear(input_dim, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, output_dim)
-        self.relu = nn.ReLU()
+# class MLP(nn.Module):
+#     def __init__(self, input_dim, hidden_dim, output_dim):
+#         super().__init__()
+#         self.linear1 = nn.Linear(input_dim, hidden_dim)
+#         self.linear2 = nn.Linear(hidden_dim, output_dim)
+#         self.relu = nn.ReLU()
         
-    def forward(self, input):
-        output = self.relu(self.linear1(input))
-        return self.linear2(F.dropout(output, p=0.2, training=self.training))
+#     def forward(self, input):
+#         output = self.relu(self.linear1(input))
+#         return self.linear2(F.dropout(output, p=0.2, training=self.training))
 
 
 # class SentBertClassifier(nn.Module):
@@ -192,22 +192,22 @@ class SentBertClassifier(nn.Module):
         return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 
-class GAT(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, dropout, heads, concat=False):
-        super().__init__()
-        self.dropout = dropout
-        self.conv1 = GATConv(in_channels, hidden_channels, heads, dropout=self.dropout, concat=concat)
-        # self.conv1 = GCNConv(in_channels, hidden_channels)
-        if concat:
-            self.conv2 = GATConv(hidden_channels * heads, hidden_channels, heads=1,
-                                concat=False, dropout=self.dropout)
-        else:
-            self.conv2 = GATConv(hidden_channels, hidden_channels // 2, heads=1,
-                                concat=False, dropout=self.dropout)
+# class GAT(torch.nn.Module):
+#     def __init__(self, in_channels, hidden_channels, dropout, heads, concat=False):
+#         super().__init__()
+#         self.dropout = dropout
+#         self.conv1 = GATConv(in_channels, hidden_channels, heads, dropout=self.dropout, concat=concat)
+#         # self.conv1 = GCNConv(in_channels, hidden_channels)
+#         if concat:
+#             self.conv2 = GATConv(hidden_channels * heads, hidden_channels, heads=1,
+#                                 concat=False, dropout=self.dropout)
+#         else:
+#             self.conv2 = GATConv(hidden_channels, hidden_channels // 2, heads=1,
+#                                 concat=False, dropout=self.dropout)
             
-    def forward(self, x, edge_index):
-        # x = F.dropout(x, p=self.dropout, training=self.training)
-        x = F.elu(self.conv1(x, edge_index))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.conv2(x, edge_index)
-        return x
+#     def forward(self, x, edge_index):
+#         # x = F.dropout(x, p=self.dropout, training=self.training)
+#         x = F.elu(self.conv1(x, edge_index))
+#         x = F.dropout(x, p=self.dropout, training=self.training)
+#         x = self.conv2(x, edge_index)
+#         return x

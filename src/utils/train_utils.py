@@ -17,6 +17,8 @@ import pickle as pkl
 from utils.read_files import read_splits, write_splits
 from utils.utils import get_verdicts_labels_from_sit, get_verdicts_labels_from_authors
 from constants import SEED
+import logging
+
 
 
 class AuthorsEmbedder:
@@ -188,19 +190,16 @@ def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, datase
 
 
 
-def evaluate_similar(dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder,
-             demo_embedder=None, USE_DEMOS=False, return_predictions=False):
+def evaluate_similar(dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=False):
     import evaluate as evaluate2
     from sklearn.metrics import f1_score
 
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     accuracy_metric = evaluate2.load("accuracy")
     f1_metric = evaluate2.load("f1")
 
     model.eval()
-    if USE_AUTHORS and author_encoder == 'graph':
-        graph_model.eval()
 
     all_ids = ['verdicts']
     all_pred = ['predictions']
@@ -236,11 +235,6 @@ def evaluate_similar(dataloader, model, graph_model, data, embedder, USE_AUTHORS
                 verdict_embeddings = torch.stack(valid_embeddings).to(DEVICE)
                 logits = model(batch, verdict_embeddings)
 
-            elif USE_AUTHORS and author_encoder == 'graph':
-                graph_output = graph_model(data.x.to(DEVICE), data.edge_index.to(DEVICE))
-                authors_embeddings = graph_output[author_node_idx.to(DEVICE)]
-                logits = model(batch, authors_embeddings)
-
             else:
                 logits = model(batch)
 
@@ -274,25 +268,25 @@ def mean_pooling(model_output, attention_mask):
     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 
-def create_author_graph(graphData, dataset, authors_embeddings, authorToAuthor, limit_connections=100):
-    leave_out = {'Judgement_Bot_AITA'}
-    for author, _ in dataset.authorsToVerdicts.items():
-        if author not in leave_out:
-            graphData.addNode(author, 'author', authors_embeddings[author], None, None)
+# def create_author_graph(graphData, dataset, authors_embeddings, authorToAuthor, limit_connections=100):
+#     leave_out = {'Judgement_Bot_AITA'}
+#     for author, _ in dataset.authorsToVerdicts.items():
+#         if author not in leave_out:
+#             graphData.addNode(author, 'author', authors_embeddings[author], None, None)
             
-    # Add author to author edges
-    source = []
-    target = []
-    for author, neighbors in tqdm(authorToAuthor.items()):
-        neighbors.sort(key=lambda x: x[1], reverse=True)
-        if len(neighbors) > limit_connections:
-            neighbors = neighbors[:limit_connections]
+#     # Add author to author edges
+#     source = []
+#     target = []
+#     for author, neighbors in tqdm(authorToAuthor.items()):
+#         neighbors.sort(key=lambda x: x[1], reverse=True)
+#         if len(neighbors) > limit_connections:
+#             neighbors = neighbors[:limit_connections]
             
-        for neighbor in neighbors:
-            # neighbor[0] = author, neighbor[1] = number_of_connections
-            if author in graphData.nodesToId and neighbor[0] in graphData.nodesToId:
-                source.append(graphData.nodesToId[author])
-                target.append(graphData.nodesToId[neighbor[0]])
+#         for neighbor in neighbors:
+#             # neighbor[0] = author, neighbor[1] = number_of_connections
+#             if author in graphData.nodesToId and neighbor[0] in graphData.nodesToId:
+#                 source.append(graphData.nodesToId[author])
+#                 target.append(graphData.nodesToId[neighbor[0]])
             
     
-    return graphData, torch.tensor([source, target], dtype=torch.long)
+#     return graphData, torch.tensor([source, target], dtype=torch.long)

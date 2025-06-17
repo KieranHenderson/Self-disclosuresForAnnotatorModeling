@@ -41,7 +41,7 @@ parser.add_argument("--output_file_name", type=str, default="precomputed_embeddi
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     path_to_data = args.path_to_data
     output_file = args.output_file_name + '.pkl'

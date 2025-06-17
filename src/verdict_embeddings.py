@@ -4,15 +4,11 @@ import numpy as np
 from tqdm import tqdm
 import os
 import pandas as pd
-from transformers import AutoTokenizer, AutoModel
-from nltk.tokenize import sent_tokenize
 from sentence_transformers import util
 import logging
 from collections import defaultdict
 import json
-
 from utils.read_files import *
-from utils.train_utils import mean_pooling
 from utils.utils import *
 from constants import *
 from dataset import SocialNormDataset
@@ -48,7 +44,7 @@ if __name__ == '__main__':
     bert_model_name = args.bert_model
     json_comments_path = args.json_comments_path
 
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     logging.info("Loading precomputed comment embeddings from %s", comment_emb_path)
     with open(comment_emb_path, 'rb') as f:
