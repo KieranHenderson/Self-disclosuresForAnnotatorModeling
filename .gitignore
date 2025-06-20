@@ -7,3 +7,4 @@ results
 *.md
 *.json
 __pycache__
+*.out

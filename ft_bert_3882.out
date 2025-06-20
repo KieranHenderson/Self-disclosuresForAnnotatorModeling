@@ -1,5 +1,0 @@
-/project/6095422/personalization/Self-disclosuresForAnnotatorModeling/env/bin/python
-Traceback (most recent call last):
-  File "/project/6095422/personalization/Self-disclosuresForAnnotatorModeling/src/ft_bert_no_verdicts_topk.py", line 29, in <module>
-    import seaborn as sns
-ModuleNotFoundError: No module named 'seaborn'

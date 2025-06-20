@@ -62,6 +62,8 @@ parser.add_argument("--graph_dim", dest="graph_dim", default=384, type=int)
 parser.add_argument("--concat", dest="concat", default='true', type=str2bool)
 parser.add_argument("--num_epochs", dest="num_epochs", default=10, type=int)
 parser.add_argument("--learning_rate", dest="learning_rate", default=1e-4, type=float)
+parser.add_argument("--dropout_rate", dest="dropout_rate", default=0.2, type=float)
+parser.add_argument("--weight_decay", dest="weight_decay", default=1e-2, type=float)
 parser.add_argument("--batch_size", dest="batch_size", default=32, type=int)
 parser.add_argument("--loss_type", dest="loss_type", default='softmax', type=str)
 parser.add_argument("--verdicts_dir", dest="verdicts_dir", default='../data/verdicts', type=str)
@@ -69,6 +71,7 @@ parser.add_argument("--bert_tok", dest="bert_tok", default='bert-base-uncased', 
 parser.add_argument("--dirname", dest="dirname", type=str, default='../data/amit_filtered_history')
 parser.add_argument("--results_dir", dest="results_dir", type=str, default='../results')
 parser.add_argument("--model_name", dest="model_name", type=str, required=True) # ['judge_bert', 'sbert'] otherwise exception
+parser.add_argument("--plot_title", dest="plot_title", type=str, default='') # for plotting the results
 
 
 if __name__ == '__main__':
@@ -89,6 +92,7 @@ if __name__ == '__main__':
     author_encoder = args.author_encoder
     social_norm = args.social_norm
     split_type = args.split_type
+    dropout_rate = args.dropout_rate
 
     if USE_AUTHORS:
         assert author_encoder in {'average', 'graph', 'attribution'}
@@ -214,7 +218,7 @@ if __name__ == '__main__':
     if model_name == 'sbert':
         logging.info("Training with SBERT, model name is {}".format(model_name))
         tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
-        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim)
+        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim, dropout_rate=dropout_rate)
     # elif model_name == 'judge_bert':
     #     logging.info("Training with Judge Bert, model name is {}".format(model_name))
     #     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
@@ -254,7 +258,7 @@ if __name__ == '__main__':
         tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
     )
 
-    optimizer = AdamW(model.parameters(), lr=args.learning_rate)
+    optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     
     num_epochs = args.num_epochs
     num_training_steps = num_epochs * len(train_dataloader)
@@ -335,10 +339,8 @@ if __name__ == '__main__':
     plt.ylabel('Loss')
     plt.title(f'Loss vs Accuradcy vs Macro F1 scores Over Epochs{ authors_embedding_path[41:]}')
     plt.legend()
-    loss_plot_path = os.path.join('results/graphs', f'{authors_embedding_path[41:-4]}_plot.png')
-    loss_plot_path1 = os.path.join('results', f'{authors_embedding_path[41:-4]}_plot.png')
+    loss_plot_path = os.path.join('results/graphs', f'{args.plot_title}.png')
     plt.savefig(loss_plot_path)
-    plt.savefig(loss_plot_path1)
     plt.close()
 
 

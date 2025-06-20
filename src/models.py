@@ -128,11 +128,11 @@ import torch.nn.functional as F
 class SentBertClassifier(nn.Module):
     def __init__(self, users_layer=False, demo_layer=False, user_dim=768, 
                  num_outputs=2, sbert_dim=384, 
-                 sbert_model='sentence-transformers/all-MiniLM-L6-v2'):
+                 sbert_model='sentence-transformers/all-MiniLM-L6-v2', dropout_rate=0.2):
         super().__init__()
         print(f"Initializing with user_layer={users_layer}, demo_layer={demo_layer}")
         self.model = AutoModel.from_pretrained(sbert_model)
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(dropout_rate)
         self.linear1 = nn.Linear(sbert_dim, sbert_dim//2)
         self.users_layer = users_layer
         self.demo_layer = demo_layer

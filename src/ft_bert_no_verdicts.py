@@ -60,6 +60,8 @@ parser.add_argument("--graph_dim", dest="graph_dim", default=384, type=int)
 parser.add_argument("--concat", dest="concat", default='true', type=str2bool)
 parser.add_argument("--num_epochs", dest="num_epochs", default=10, type=int)
 parser.add_argument("--learning_rate", dest="learning_rate", default=1e-4, type=float)
+parser.add_argument("--dropout_rate", dest="dropout_rate", default=0.2, type=float)
+parser.add_argument("--weight_decay", dest="weight_decay", default=1e-2, type=float)
 parser.add_argument("--batch_size", dest="batch_size", default=32, type=int)
 parser.add_argument("--loss_type", dest="loss_type", default='softmax', type=str)
 parser.add_argument("--verdicts_dir", dest="verdicts_dir", default='../data/verdicts', type=str)
@@ -89,6 +91,7 @@ if __name__ == '__main__':
     #checkpoint_dir = os.path.normpath(os.path.join(results_dir, 'best_models', f'{TIMESTAMP}_best_model_sampled.pt'))
     #checkpoint_dir = os.path.join(results_dir, f'best_models/{TIMESTAMP}_best_model_sampled.pt')
     graph_checkpoint_dir = os.path.join(results_dir, f'best_models/{TIMESTAMP}_best_graphmodel.pt')
+    dropout_rate = args.dropout_rate
     
     authors_embedding_path = args.authors_embedding_path
     USE_AUTHORS = args.use_authors
@@ -242,7 +245,7 @@ if __name__ == '__main__':
     if model_name == 'sbert':
         logging.info("Training with SBERT, model name is {}".format(model_name))
         tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
-        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim)
+        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim, dropout_rate=dropout_rate, learning_rate=learning_rate)
     else:
         raise Exception('Wrong model name')
     
@@ -282,7 +285,7 @@ if __name__ == '__main__':
         tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
     )
 
-    optimizer = AdamW(model.parameters(), lr=args.learning_rate)
+    optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     
     num_epochs = args.num_epochs
     num_training_steps = num_epochs * len(train_dataloader)

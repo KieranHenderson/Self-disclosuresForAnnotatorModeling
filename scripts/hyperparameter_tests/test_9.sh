@@ -1,3 +1,4 @@
+
 python src/ft_bert_no_verdicts_topk.py \
 --use_authors='true' \
 --author_encoder='average' \
@@ -10,6 +11,10 @@ python src/ft_bert_no_verdicts_topk.py \
 --model_name='sbert' \
 --split_type='verdicts' \
 --situation='text' \
---authors_embedding_path='data/final_embeddings/verdict_embeddings_cluster_9.pkl' \
+--authors_embedding_path='data/final_embeddings/verdict_embeddings_cluster_4.pkl' \
 --path_to_data='data/' \
---social_norm='true'
+--social_norm='true' \
+--learning_rate=0.0027979885679889757 \
+--dropout=0.37157101598556647 \
+--weight_decay=0.06892604130213559 \
+--plot_title='Hyperparameter Test 9' \
