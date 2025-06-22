@@ -337,7 +337,7 @@ if __name__ == '__main__':
     plt.plot(epochs, val_f1_scores, label='Validation F1 Score', color='orange')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title(f'Loss vs Accuradcy vs Macro F1 scores Over Epochs{ authors_embedding_path[41:]}')
+    plt.title(f'Learning rate = {args.learning_rate}, dropout = {dropout_rate}, weight decay = {args.weight_decay}')
     plt.legend()
     loss_plot_path = os.path.join('results/graphs', f'{args.plot_title}.png')
     plt.savefig(loss_plot_path)
