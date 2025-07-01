@@ -214,183 +214,203 @@ if __name__ == '__main__':
                 
                 assert test_labels[i] == dataset.verdictToLabel[verdict] 
     
+    average_results = []
+    for i in range(5):
 
-    if model_name == 'sbert':
-        logging.info("Training with SBERT, model name is {}".format(model_name))
-        tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
-        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim, dropout_rate=dropout_rate)
-    # elif model_name == 'judge_bert':
-    #     logging.info("Training with Judge Bert, model name is {}".format(model_name))
-    #     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
-    #     model = JudgeBert()
-    else:
-        raise Exception('Wrong model name')
-    
-    
-    model.to(DEVICE)
-    
-    ds = DatasetDict()
+        np.random.seed(SEED+i)
+        torch.manual_seed(SEED+i)
+        torch.cuda.manual_seed(SEED+i)
+        torch.cuda.manual_seed_all(SEED+i)
 
-    for split, d in raw_dataset.items():
-        ds[split] = Dataset.from_dict(mapping=d, features=Features({'label': Value(dtype='int64'), 'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
-    
-    def tokenize_function(example):
-        return tokenizer(example["text"], truncation=True)
-
-    logging.info("Tokenizing the dataset")
-    tokenized_dataset = ds.map(tokenize_function, batched=True)
-    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
-    
-    tokenized_dataset = tokenized_dataset.remove_columns(["text"])
-    tokenized_dataset = tokenized_dataset.rename_column("label", "labels")
-    tokenized_dataset.set_format("torch")
-    
-    batch_size = args.batch_size
-
-    train_dataloader = DataLoader(
-        tokenized_dataset["train"], batch_size=batch_size, collate_fn=data_collator, shuffle = True
-    )
-    eval_dataloader = DataLoader(
-        tokenized_dataset["val"], batch_size=batch_size, collate_fn=data_collator
-    )
-    
-    test_dataloader = DataLoader(
-        tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
-    )
-
-    optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-    
-    num_epochs = args.num_epochs
-    num_training_steps = num_epochs * len(train_dataloader)
-    samples_per_class_train = get_samples_per_class(tokenized_dataset["train"]['labels'])
-
-    lr_scheduler = get_scheduler(
-        "linear",
-        optimizer=optimizer,
-        num_warmup_steps=0,
-        num_training_steps=num_training_steps,
-    )
-    logging.info("Number of training steps {}".format(num_training_steps))
-    loss_type=args.loss_type
-    progress_bar = tqdm(range(num_training_steps))
-    best_accuracy = 0
-    best_f1 = 0
-
-    train_loss = []
-
-    val_metrics = []
-    val_accuracies = []
-    val_f1_scores = []
-    train_losses = []  # This will store average loss per epoch
-    epochs = []
-
-    for epoch in range(num_epochs):
-        model.train()
-        epoch_losses = []  # This will store losses for each batch in the current epoch
-            
-        for batch in train_dataloader:
-            verdicts_index = batch.pop("index")
-            author_node_idx = batch.pop("author_node_idx")
-            batch = {k: v.to(DEVICE) for k, v in batch.items()}
-            labels = batch.pop("labels")
-            
-            if USE_AUTHORS and (author_encoder == 'average' or author_encoder == 'attribution'):
-                try:
-                    verdict_embeddings = torch.stack([embedder.embed_verdict(dataset.idToVerdict[index.item()]) for index in verdicts_index]).to(DEVICE)
-                except KeyError as e:
-                    logging.warning(f"Missing embedding for verdict_id {e}. Skipping this batch.")
-                    continue
-                output = model(batch, verdict_embeddings)
-            else: 
-                output = model(batch)
-            
-            loss = loss_fn(output, labels, samples_per_class_train, loss_type=loss_type)
-            epoch_losses.append(loss.item())
-            loss.backward()
-            
-            optimizer.step()
-            lr_scheduler.step()
-            optimizer.zero_grad()
-            progress_bar.update(1)
+        if model_name == 'sbert':
+            logging.info("Training with SBERT, model name is {}".format(model_name))
+            tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
+            model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim, dropout_rate=dropout_rate)
+        # elif model_name == 'judge_bert':
+        #     logging.info("Training with Judge Bert, model name is {}".format(model_name))
+        #     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+        #     model = JudgeBert()
+        else:
+            raise Exception('Wrong model name')
         
-        # Calculate and store average epoch loss
-        avg_epoch_loss = sum(epoch_losses) / len(epoch_losses)
-        train_losses.append(avg_epoch_loss)
         
-        val_metric = evaluate_similar(eval_dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder)
-        val_metrics.append(val_metric)
-
-        # Store validation metrics
-        val_accuracies.append(val_metric['accuracy'])
-        val_f1_scores.append(val_metric['macro'])
-        epochs.append(epoch)
+        model.to(DEVICE)
         
-        logging.info("Epoch {} **** Loss {} **** Metrics validation: {}".format(epoch, avg_epoch_loss, val_metric))
-        if val_metric['f1_weighted'] > best_f1:
-            best_f1 = val_metric['f1_weighted']
-            torch.save(model.state_dict(), checkpoint_dir)
+        ds = DatasetDict()
+
+        for split, d in raw_dataset.items():
+            ds[split] = Dataset.from_dict(mapping=d, features=Features({'label': Value(dtype='int64'), 'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
+        
+        def tokenize_function(example):
+            return tokenizer(example["text"], truncation=True)
+
+        logging.info("Tokenizing the dataset")
+        tokenized_dataset = ds.map(tokenize_function, batched=True)
+        data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+        
+        tokenized_dataset = tokenized_dataset.remove_columns(["text"])
+        tokenized_dataset = tokenized_dataset.rename_column("label", "labels")
+        tokenized_dataset.set_format("torch")
+        
+        batch_size = args.batch_size
+
+        train_dataloader = DataLoader(
+            tokenized_dataset["train"], batch_size=batch_size, collate_fn=data_collator, shuffle = True
+        )
+        eval_dataloader = DataLoader(
+            tokenized_dataset["val"], batch_size=batch_size, collate_fn=data_collator
+        )
+        
+        test_dataloader = DataLoader(
+            tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
+        )
+
+        optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        
+        num_epochs = args.num_epochs
+        num_training_steps = num_epochs * len(train_dataloader)
+        samples_per_class_train = get_samples_per_class(tokenized_dataset["train"]['labels'])
+
+        lr_scheduler = get_scheduler(
+            "linear",
+            optimizer=optimizer,
+            num_warmup_steps=0,
+            num_training_steps=num_training_steps,
+        )
+        logging.info("Number of training steps {}".format(num_training_steps))
+        loss_type=args.loss_type
+        progress_bar = tqdm(range(num_training_steps))
+        best_accuracy = 0
+        best_f1 = 0
+
+        train_loss = []
+
+        val_metrics = []
+        val_accuracies = []
+        val_f1_scores = []
+        train_losses = []  # This will store average loss per epoch
+        epochs = []
+
+        for epoch in range(num_epochs):
+            model.train()
+            epoch_losses = []  # This will store losses for each batch in the current epoch
+                
+            for batch in train_dataloader:
+                verdicts_index = batch.pop("index")
+                author_node_idx = batch.pop("author_node_idx")
+                batch = {k: v.to(DEVICE) for k, v in batch.items()}
+                labels = batch.pop("labels")
+                
+                if USE_AUTHORS and (author_encoder == 'average' or author_encoder == 'attribution'):
+                    try:
+                        verdict_embeddings = torch.stack([embedder.embed_verdict(dataset.idToVerdict[index.item()]) for index in verdicts_index]).to(DEVICE)
+                    except KeyError as e:
+                        logging.warning(f"Missing embedding for verdict_id {e}. Skipping this batch.")
+                        continue
+                    output = model(batch, verdict_embeddings)
+                else: 
+                    output = model(batch)
+                
+                loss = loss_fn(output, labels, samples_per_class_train, loss_type=loss_type)
+                epoch_losses.append(loss.item())
+                loss.backward()
+                
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
+                progress_bar.update(1)
+            
+            # Calculate and store average epoch loss
+            avg_epoch_loss = sum(epoch_losses) / len(epoch_losses)
+            train_losses.append(avg_epoch_loss)
+            
+            val_metric = evaluate_similar(eval_dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder)
+            val_metrics.append(val_metric)
+
+            # Store validation metrics
+            val_accuracies.append(val_metric['accuracy'])
+            val_f1_scores.append(val_metric['macro'])
+            epochs.append(epoch)
+            
+            logging.info("Epoch {} **** Loss {} **** Metrics validation: {}".format(epoch, avg_epoch_loss, val_metric))
+            if val_metric['f1_weighted'] > best_f1:
+                best_f1 = val_metric['f1_weighted']
+                torch.save(model.state_dict(), checkpoint_dir)
+        
+        # Plot and save the training results graph
+        plt.figure(figsize=(10, 5))
+        plt.plot(epochs, train_losses, label='Training Loss')
+        plt.plot(epochs, val_accuracies, label='Validation Accuracy', color='green')
+        plt.plot(epochs, val_f1_scores, label='Validation F1 Score', color='orange')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title(f'{args.plot_title}')
+        plt.legend()
+        loss_plot_path = os.path.join('results/graphs', f'{args.plot_title}.png')
+        plt.savefig(loss_plot_path)
+        plt.close()
+
+
+
+        logging.info("Evaluating")
+        model.load_state_dict(torch.load(checkpoint_dir))
+        model.to(DEVICE)
+
+        test_metrics = evaluate_similar(test_dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
+        average_results.append(test_metrics)
+
+        results = test_metrics.pop('results')
+        logging.info(test_metrics)
+        
+        result_logs = {'id': TIMESTAMP}
+        result_logs['seed'] = SEED
+        result_logs['type'] = f'NO VERDICTS TEXT + SITUATION {args.situation}'
+        result_logs['sbert_model'] = args.sbert_model
+        result_logs['model_name'] = args.model_name
+        result_logs['use_authors_embeddings'] = USE_AUTHORS
+        result_logs['authors_embedding_path'] = authors_embedding_path
+        result_logs['author_encoder'] = author_encoder
+        result_logs['split_type'] = split_type
+        result_logs['train_stats'] = train_size_stats
+        result_logs['val_stats'] = val_size_stats
+        result_logs['test_stats'] = test_size_stats
+        result_logs['epochs'] = num_epochs
+        result_logs['optimizer'] = optimizer.defaults
+        result_logs["loss_type"] = loss_type
+        result_logs['test_metrics'] = test_metrics
+        result_logs['checkpoint_dir'] = checkpoint_dir
+        result_logs['val_metrics'] = val_metrics
+        result_logs['results'] = results
+
+        topk_match = re.search(r'topk_(\d+)', authors_embedding_path)
+        result_logs['top_k'] = int(topk_match.group(1)) if topk_match else -1
+
+        embed_type_match = re.search(r'user_(\w+)_embeddings', authors_embedding_path)
+        result_logs['embedding_type'] = embed_type_match.group(1) if embed_type_match else 'unknown'
+
+
+
+
+
+
+        
+        
+        #res_file = os.path.join(results_dir, TIMESTAMP + ".json")
+        # res_file = os.path.join(r'C:\Users\User\PycharmProjects\perspectivism-personalization\results',
+        #                               f'{TIMESTAMP}.json')
+        res_file = os.path.join(r'results',
+                                    f'{TIMESTAMP}.json')
+        with open(res_file, mode='w') as f:
+            json.dump(result_logs, f, cls=NpEncoder, indent=2)
+
+    # average results
+    averaged_results = results.copy()
+    for i in range(1, len(average_results)):
+        for key in average_results[i].keys():
+            averaged_results[key] += average_results[i][key]
+
+    for key in averaged_results.keys():
+        averaged_results[key] /= len(average_results)
+
     
-    # Plot and save the training results graph
-    plt.figure(figsize=(10, 5))
-    plt.plot(epochs, train_losses, label='Training Loss')
-    plt.plot(epochs, val_accuracies, label='Validation Accuracy', color='green')
-    plt.plot(epochs, val_f1_scores, label='Validation F1 Score', color='orange')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title(f'{args.plot_title}')
-    plt.legend()
-    loss_plot_path = os.path.join('results/graphs', f'{args.plot_title}.png')
-    plt.savefig(loss_plot_path)
-    plt.close()
-
-
-
-    logging.info("Evaluating")
-    model.load_state_dict(torch.load(checkpoint_dir))
-    model.to(DEVICE)
-
-    test_metrics = evaluate_similar(test_dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
-
-    results = test_metrics.pop('results')
-    logging.info(test_metrics)
-    
-    result_logs = {'id': TIMESTAMP}
-    result_logs['seed'] = SEED
-    result_logs['type'] = f'NO VERDICTS TEXT + SITUATION {args.situation}'
-    result_logs['sbert_model'] = args.sbert_model
-    result_logs['model_name'] = args.model_name
-    result_logs['use_authors_embeddings'] = USE_AUTHORS
-    result_logs['authors_embedding_path'] = authors_embedding_path
-    result_logs['author_encoder'] = author_encoder
-    result_logs['split_type'] = split_type
-    result_logs['train_stats'] = train_size_stats
-    result_logs['val_stats'] = val_size_stats
-    result_logs['test_stats'] = test_size_stats
-    result_logs['epochs'] = num_epochs
-    result_logs['optimizer'] = optimizer.defaults
-    result_logs["loss_type"] = loss_type
-    result_logs['test_metrics'] = test_metrics
-    result_logs['checkpoint_dir'] = checkpoint_dir
-    result_logs['val_metrics'] = val_metrics
-    result_logs['results'] = results
-
-    topk_match = re.search(r'topk_(\d+)', authors_embedding_path)
-    result_logs['top_k'] = int(topk_match.group(1)) if topk_match else -1
-
-    embed_type_match = re.search(r'user_(\w+)_embeddings', authors_embedding_path)
-    result_logs['embedding_type'] = embed_type_match.group(1) if embed_type_match else 'unknown'
-
-
-
-
-
-
-    
-    
-    #res_file = os.path.join(results_dir, TIMESTAMP + ".json")
-    # res_file = os.path.join(r'C:\Users\User\PycharmProjects\perspectivism-personalization\results',
-    #                               f'{TIMESTAMP}.json')
-    res_file = os.path.join(r'results',
-                                  f'{TIMESTAMP}.json')
-    with open(res_file, mode='w') as f:
-        json.dump(result_logs, f, cls=NpEncoder, indent=2)
+    logging.info("Averaged results: {}".format(averaged_results))

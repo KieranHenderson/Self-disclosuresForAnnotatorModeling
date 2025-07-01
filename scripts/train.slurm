@@ -15,22 +15,13 @@ module load cuda/12.2
 module load cudnn/9.2.1.18
 module load arrow/18.1.0
 
-## Sentence based tests
-
-## Random 5
 source env/bin/activate
-python src/ft_bert_no_verdicts.py \
---use_authors='true' \
---author_encoder='average' \
---loss_type='focal' \
---num_epochs=10 \
---sbert_model='sentence-transformers/all-distilroberta-v1' \
---bert_tok='sentence-transformers/all-distilroberta-v1' \
---sbert_dim=768 \
---user_dim=768 \
---model_name='sbert' \
---split_type='verdicts' \
---situation='text' \
---authors_embedding_path='data/embeddings/user_post_embeddings_cluster0.pkl' \
+
+python src/users_sbert_embeddings_random.py \
 --path_to_data='data/' \
---social_norm='true'
+--dirname='data/amit_filtered_history/' \
+--output_dir='data/embeddings/' \
+--embed_sentences='false' \
+--posts_per_author=-1 \
+--output_file_name='user_sent_embeddings_5' \
+--random_sampling='true' \

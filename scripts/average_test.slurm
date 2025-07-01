@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:h100:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=96G
-#SBATCH --time=2:00:00
+#SBATCH --time=10:00:00
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --output=ft_bert_%j.out
@@ -16,7 +16,7 @@ module load cudnn/9.2.1.18
 module load arrow/18.1.0
 
 source env/bin/activate
-python src/ft_bert_no_verdicts_topk.py \
+python src/ft_bert_no_verdicts_topk_avg.py \
 --use_authors='true' \
 --author_encoder='average' \
 --loss_type='focal' \
@@ -26,7 +26,7 @@ python src/ft_bert_no_verdicts_topk.py \
 --sbert_dim=768 \
 --user_dim=768 \
 --model_name='sbert' \
---split_type='sit' \
+--split_type='verdict' \
 --situation='text' \
 --authors_embedding_path='data/final_embeddings/verdict_embeddings_cluster_9.pkl' \
 --plot_title='cluster 9 situation split' \
