@@ -10,15 +10,26 @@ from sentence_transformers import util
 import logging
 from collections import defaultdict
 import json
+from joblib import Parallel, delayed
+import glob
+
 
 from utils.read_files import *
 from utils.train_utils import mean_pooling
 from utils.utils import *
 from constants import *
 from dataset import SocialNormDataset
+from utils.clusters_utils import *
 
 # GPU Optimization
 torch.backends.cudnn.benchmark = True
+
+# Set random seeds for reproducibility
+import random
+SEED = 42
+np.random.seed(SEED)
+random.seed(SEED)
+torch.manual_seed(SEED)
 
 # Logging Configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -59,6 +70,30 @@ if __name__ == '__main__':
     with open(comment_emb_path, 'rb') as f:
         comment_embeddings = pkl.load(f)
 
+    # Filter comments based on JSON file (if provided)
+    logging.info("Filtering comments based on JSON file (if provided)")
+    filtered_comment_keys = set()
+    if json_comments_path:
+        logging.info("Using JSON file to restrict comment set: %s", json_comments_path)
+        with open(json_comments_path, 'r', encoding='utf-8') as f:
+            json_data = json.load(f)
+        for item in tqdm(json_data, desc="Processing JSON comments"):
+            author = item.get("author")
+            comment_id = item.get("id")
+            parent_id = item.get("parent_id")
+            if author and comment_id and parent_id:
+                key = (author, parent_id, comment_id)
+                if key in comment_embeddings:
+                    filtered_comment_keys.add(key)
+    else:
+        filtered_comment_keys = set(comment_embeddings.keys())
+
+
+    # Load dataset
+    social_chemistry = pd.read_csv(os.path.join(path_to_data, 'social_chemistry_clean_with_fulltexts.csv'))
+    social_comments = pd.read_csv(os.path.join(path_to_data, 'social_norms_clean.csv'), encoding="utf8")
+    dataset = SocialNormDataset(social_comments, social_chemistry)
+
     # Load or compute post embeddings
     if os.path.exists(post_emb_path):
         logging.info("Loading precomputed post embeddings from %s", post_emb_path)
@@ -84,12 +119,9 @@ if __name__ == '__main__':
                 torch.cuda.empty_cache()
             return torch.cat(all_embs, dim=0)
 
-        social_chemistry = pd.read_csv(os.path.join(path_to_data, 'social_chemistry_clean_with_fulltexts.csv'))
-        social_comments = pd.read_csv(os.path.join(path_to_data, 'social_norms_clean.csv'), encoding="utf8")
-        dataset = SocialNormDataset(social_comments, social_chemistry)
 
         post_id_texts = [(post_id, dataset.postIdToText.get(post_id)) for post_id in dataset.postToVerdicts.keys() if dataset.postIdToText.get(post_id)]
-        post_ids, processed_post_contents = zip(*[(post_id, process_tweet(fulltext)) for post_id, fulltext in post_id_texts])
+
 
         if embed_sentences:
             all_sentences = []
@@ -101,6 +133,8 @@ if __name__ == '__main__':
             all_embeddings = encode_texts(all_sentences)
             post_embeddings = {post_id: all_embeddings[start:end].mean(dim=0).numpy() for post_id, (start, end) in sentence_map.items()}
         else:
+            processed_post_contents = [process_tweet(fulltext) for _, fulltext in post_id_texts]
+            post_ids = [post_id for post_id, _ in post_id_texts]
             all_embeddings = encode_texts(processed_post_contents)
             post_embeddings = {post_id: all_embeddings[i].numpy() for i, post_id in enumerate(post_ids)}
 
@@ -109,33 +143,55 @@ if __name__ == '__main__':
             pkl.dump(post_embeddings, f)
         logging.info("Saved post embeddings to %s", post_emb_path)
 
-    # Load dataset again if needed
-    if 'dataset' not in locals():
-        social_chemistry = pd.read_csv(os.path.join(path_to_data, 'social_chemistry_clean_with_fulltexts.csv'))
-        social_comments = pd.read_csv(os.path.join(path_to_data, 'social_norms_clean.csv'), encoding="utf8")
-        dataset = SocialNormDataset(social_comments, social_chemistry)
 
-    # Group comments by author
+    # Creating author_vocab from AMIT dataset
+    authors = set(dataset.authorsToVerdicts.keys())
+    filenames = sorted(glob.glob(os.path.join('data/amit_filtered_history/', '*.json')))
+    results = Parallel(n_jobs=32)(delayed(extract_authors_vocab_AMIT)(filename, authors) for filename in tqdm(filenames, desc='Reading files'))
+    authors_vocab = ListDict()
+    for r in results:
+        authors_vocab.update_lists(r)
+
+    # Create a mapping from comment_id to text
+    comment_id_to_text = {}
+    for author, comment_list in authors_vocab.items():
+        for comment_text, comment_id, post_id in comment_list:
+            if comment_id:  # optionally ensure not None
+                comment_id_to_text[comment_id] = comment_text
+
+
+
+    # Build retrieval corpus based on embed_sentences
     author_to_comments = defaultdict(list)
+    author_to_sentences = defaultdict(list)
 
-    if json_comments_path:
-        logging.info("Using JSON file to restrict comment set: %s", json_comments_path)
-        with open(json_comments_path, 'r', encoding='utf-8') as f:
-            json_data = json.load(f)
+    if embed_sentences:
+        logging.info("Embedding author comments at sentence level for retrieval.")
+        tokenizer = AutoTokenizer.from_pretrained(bert_model_name, use_fast=True)
+        model = AutoModel.from_pretrained(bert_model_name).to(DEVICE)
+        model.eval()
 
-        allowed_keys = set()
-        for item in tqdm(json_data, desc="Processing JSON comments"):
-            author = item.get("author")
-            comment_id = item.get("id")
-            parent_id = item.get("parent_id")
-            if author and comment_id and parent_id:
-                key = (author, parent_id, comment_id)
-                if key in comment_embeddings:
-                    author_to_comments[author].append((parent_id, comment_id, comment_embeddings[key]))
+        all_sentences = []
+        sentence_map = []
+
+        for (author, parent_id, comment_id) in tqdm(filtered_comment_keys, desc="Preparing sentences"):
+            comment_text = comment_id_to_text.get(comment_id, None)
+            if not comment_text:
+                continue
+            sents = [process_tweet(s) for s in sent_tokenize(comment_text) if s.strip()]
+            sentence_map.extend([(author, parent_id, comment_id, idx) for idx in range(len(sents))])
+            all_sentences.extend(sents)
+
+        sentence_embeddings = encode_texts(all_sentences)
+        for idx, (author, parent_id, comment_id, sent_idx) in enumerate(sentence_map):
+            emb = sentence_embeddings[idx].numpy()
+            author_to_sentences[author].append((parent_id, comment_id, sent_idx, emb))
     else:
-        logging.info("Using all available comment embeddings")
-        for (author, parent_id, comment_id), embedding in comment_embeddings.items():
+        logging.info("Using filtered comments at comment level for retrieval.")
+        for (author, parent_id, comment_id) in filtered_comment_keys:
+            embedding = comment_embeddings[(author, parent_id, comment_id)]
             author_to_comments[author].append((parent_id, comment_id, embedding))
+
 
     # Compute verdict-specific user embeddings
     verdict_embeddings = {}
@@ -150,9 +206,14 @@ if __name__ == '__main__':
             if not author:
                 continue
 
-            author_other_comments = [(parent_id, comment_id, embedding) for parent_id, comment_id, embedding in author_to_comments[author] if parent_id != post_id]
-            if author_other_comments:
-                vecs = torch.tensor(np.stack([embedding for _, _, embedding in author_other_comments]), dtype=torch.float32).to(DEVICE)
+            if embed_sentences:
+                author_items = [(parent_id, comment_id, sent_idx, emb) for parent_id, comment_id, sent_idx, emb in author_to_sentences[author] if parent_id != post_id]
+                vecs = torch.tensor(np.stack([emb for _, _, _, emb in author_items]), dtype=torch.float32).to(DEVICE) if author_items else None
+            else:
+                author_items = [(parent_id, comment_id, emb) for parent_id, comment_id, emb in author_to_comments[author] if parent_id != post_id]
+                vecs = torch.tensor(np.stack([emb for _, _, emb in author_items]), dtype=torch.float32).to(DEVICE) if author_items else None
+
+            if vecs is not None and vecs.shape[0] > 0:
                 similarities = util.cos_sim(post_embedding, vecs).squeeze(0)
                 k = min(top_k, len(similarities))
                 topk = torch.topk(similarities, k=k)
