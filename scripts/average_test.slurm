@@ -26,7 +26,7 @@ python src/ft_bert_no_verdicts_topk_avg.py \
 --sbert_dim=768 \
 --user_dim=768 \
 --model_name='sbert' \
---split_type='verdict' \
+--split_type='verdicts' \
 --situation='text' \
 --authors_embedding_path='data/final_embeddings/verdict_embeddings_cluster_9.pkl' \
 --plot_title='cluster 9 situation split' \

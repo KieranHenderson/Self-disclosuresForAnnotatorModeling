@@ -16,9 +16,17 @@ module load cudnn/9.2.1.18
 module load arrow/18.1.0
 
 source env/bin/activate
+# python ./src/precompute_comment_embeddings.py \
+# --path_to_data='data/' \
+# --dirname='data/amit_filtered_history/' \
+# --output_dir='data/embeddings/' \
+# --embed_sentences=false \
+# --output_file_name='precomputed_comment_embeddings_postlevel' \
+
+
 python ./src/precompute_comment_embeddings.py \
 --path_to_data='data/' \
 --dirname='data/amit_filtered_history/' \
 --output_dir='data/embeddings/' \
---embed_sentences=false \
---output_file_name='precomputed_comment_embeddings_postlevel' \
+--embed_sentences=true \
+--output_file_name='precomputed_comment_embeddings_sentlevel' \

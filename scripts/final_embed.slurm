@@ -22,6 +22,5 @@ python src/verdict_embeddings.py \
 --path_to_data='data/' \
 --output_dir='data/final_embeddings/' \
 --top_k=5 \
---embed_sentences=false \
---output_file_name='verdict_embeddings_relationships' \
---json_comments_path='data/manual/relationships.json' \
+--embed_sentences=true \
+--output_file_name='verdict_embeddings_postlevel_5' \

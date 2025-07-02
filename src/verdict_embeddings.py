@@ -46,6 +46,19 @@ parser.add_argument('--embed_sentences', type=str2bool, default=False)
 parser.add_argument('--bert_model', default='sentence-transformers/all-distilroberta-v1')
 parser.add_argument('--json_comments_path', required=False, default=None)
 
+def encode_texts(texts, batch_size=4096):
+    all_embs = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i+batch_size]
+        inputs = tokenizer(batch, padding=True, truncation=True, return_tensors='pt').to(DEVICE)
+        with torch.no_grad():
+            outputs = model(**inputs)
+            pooled = mean_pooling(outputs, inputs['attention_mask'])
+            normed = torch.nn.functional.normalize(pooled, p=2, dim=1)
+            all_embs.append(normed.cpu())
+        del inputs, outputs, pooled, normed
+        torch.cuda.empty_cache()
+    return torch.cat(all_embs, dim=0)
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -104,22 +117,6 @@ if __name__ == '__main__':
         tokenizer = AutoTokenizer.from_pretrained(bert_model_name, use_fast=True)
         model = AutoModel.from_pretrained(bert_model_name).to(DEVICE)
         model.eval()
-
-        def encode_texts(texts, batch_size=4096):
-            all_embs = []
-            for i in range(0, len(texts), batch_size):
-                batch = texts[i:i+batch_size]
-                inputs = tokenizer(batch, padding=True, truncation=True, return_tensors='pt').to(DEVICE)
-                with torch.no_grad():
-                    outputs = model(**inputs)
-                    pooled = mean_pooling(outputs, inputs['attention_mask'])
-                    normed = torch.nn.functional.normalize(pooled, p=2, dim=1)
-                    all_embs.append(normed.cpu())
-                del inputs, outputs, pooled, normed
-                torch.cuda.empty_cache()
-            return torch.cat(all_embs, dim=0)
-
-
         post_id_texts = [(post_id, dataset.postIdToText.get(post_id)) for post_id in dataset.postToVerdicts.keys() if dataset.postIdToText.get(post_id)]
 
 

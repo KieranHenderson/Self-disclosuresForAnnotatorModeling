@@ -197,6 +197,9 @@ if __name__ == '__main__':
                 if random_sampling and len(posts) > posts_per_author and posts_per_author > 0:
                     # Randomly sample posts from the author
                     posts = random.sample(posts, k=posts_per_author)
+                elif posts_per_author == 0: 
+                    # If posts_per_author is 0, use no posts
+                    posts = []
 
 
                 processed_texts = [process_tweet(text[0]) for text in posts]
