@@ -46,7 +46,7 @@ parser.add_argument('--embed_sentences', type=str2bool, default=False)
 parser.add_argument('--bert_model', default='sentence-transformers/all-distilroberta-v1')
 parser.add_argument('--json_comments_path', required=False, default=None)
 
-def encode_texts(texts, batch_size=4096):
+def encode_texts(texts, batch_size=32):
     all_embs = []
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i+batch_size]
@@ -101,6 +101,9 @@ if __name__ == '__main__':
     else:
         filtered_comment_keys = set(comment_embeddings.keys())
 
+    tokenizer = AutoTokenizer.from_pretrained(bert_model_name, use_fast=True)
+    model = AutoModel.from_pretrained(bert_model_name).to(DEVICE)
+    model.eval()
 
     # Load dataset
     social_chemistry = pd.read_csv(os.path.join(path_to_data, 'social_chemistry_clean_with_fulltexts.csv'))
@@ -114,9 +117,6 @@ if __name__ == '__main__':
             post_embeddings = pkl.load(f)
     else:
         logging.info("Precomputed post embeddings not found. Generating new ones...")
-        tokenizer = AutoTokenizer.from_pretrained(bert_model_name, use_fast=True)
-        model = AutoModel.from_pretrained(bert_model_name).to(DEVICE)
-        model.eval()
         post_id_texts = [(post_id, dataset.postIdToText.get(post_id)) for post_id in dataset.postToVerdicts.keys() if dataset.postIdToText.get(post_id)]
 
 
@@ -164,9 +164,6 @@ if __name__ == '__main__':
 
     if embed_sentences:
         logging.info("Embedding author comments at sentence level for retrieval.")
-        tokenizer = AutoTokenizer.from_pretrained(bert_model_name, use_fast=True)
-        model = AutoModel.from_pretrained(bert_model_name).to(DEVICE)
-        model.eval()
 
         all_sentences = []
         sentence_map = []
@@ -179,7 +176,12 @@ if __name__ == '__main__':
             sentence_map.extend([(author, parent_id, comment_id, idx) for idx in range(len(sents))])
             all_sentences.extend(sents)
 
-        sentence_embeddings = encode_texts(all_sentences)
+        sentence_embeddings = []
+        batch_size = 512
+        for i in range(0, len(all_sentences), batch_size):
+            batch = all_sentences[i:i + batch_size]
+            sentence_embeddings.extend(encode_texts(batch))
+
         for idx, (author, parent_id, comment_id, sent_idx) in enumerate(sentence_map):
             emb = sentence_embeddings[idx].numpy()
             author_to_sentences[author].append((parent_id, comment_id, sent_idx, emb))

@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:h100:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=96G
-#SBATCH --time=5:00:00
+#SBATCH --time=4:00:00
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --output=ft_bert_%j.out
@@ -17,10 +17,10 @@ module load arrow/18.1.0
 
 source env/bin/activate
 python src/verdict_embeddings.py \
---comment_embeddings_path='data/embeddings/precomputed_comment_embeddings_postlevel.pkl' \
---post_embeddings_path='data/embeddings/precomputed_post_embeddings_postlevel.pkl' \
+--comment_embeddings_path='data/embeddings/precomputed_comment_embeddings_sentlevel.pkl' \
+--post_embeddings_path='data/embeddings/precomputed_post_embeddings_sentlevel.pkl' \
 --path_to_data='data/' \
 --output_dir='data/final_embeddings/' \
 --top_k=5 \
 --embed_sentences=true \
---output_file_name='verdict_embeddings_postlevel_5' \
+--output_file_name='verdict_embeddings_sentlevel_5' \
