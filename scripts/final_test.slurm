@@ -26,9 +26,9 @@ python src/ft_bert_no_verdicts_topk.py \
 --sbert_dim=768 \
 --user_dim=768 \
 --model_name='sbert' \
---split_type='sit' \
+--split_type='verdicts' \
 --situation='text' \
---authors_embedding_path='data/final_embeddings/verdict_embeddings_cluster_9.pkl' \
---plot_title='cluster 9 situation split' \
+--authors_embedding_path='data/final_embeddings/verdict_embeddings_postlevel_5.pkl' \
 --path_to_data='data/' \
---social_norm='true'
+--social_norm='true' \
+--plot_title='post level topk 5' \

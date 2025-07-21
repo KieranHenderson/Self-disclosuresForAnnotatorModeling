@@ -201,7 +201,6 @@ if __name__ == '__main__':
                     # If posts_per_author is 0, use no posts
                     posts = []
 
-
                 processed_texts = [process_tweet(text[0]) for text in posts]
 
                 # Tokenize posts
