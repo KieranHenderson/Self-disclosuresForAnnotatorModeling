@@ -42,7 +42,7 @@ def load_json_comments(folder):
 
 
 # function to get 1 unpicked-before top match from each json file in comment_sets 
-def get_unique_top_comments(comment_sets, post_id, author, comment_embeddings_map):
+def get_unique_top_comments(comment_sets, post_id, author, comment_embeddings_map, post_embeddings):
     selected_keys = set()
     selected_embeddings = []
 
@@ -74,7 +74,7 @@ def get_unique_top_comments(comment_sets, post_id, author, comment_embeddings_ma
             key = comment_keys[index.item()]
             if key not in selected_keys:
                 selected_keys.add(key)
-                selected_embeddings.append(embeddings[index.item()].cpu().numpy())
+                selected_embeddings.append(embeddings[index.item()])
                 break
 
     return selected_embeddings
@@ -134,7 +134,7 @@ if __name__ == '__main__':
             if not author:
                 continue
 
-            selected_author_embeddings = get_unique_top_comments(persona_sets, post_id, author, comment_embeddings_map)
+            selected_author_embeddings = get_unique_top_comments(persona_sets, post_id, author, comment_embeddings_map, post_embeddings)
             if selected_author_embeddings:
                 verdict_level_embeddings[verdict_id] = np.mean(np.stack(selected_author_embeddings), axis=0)
             else:
