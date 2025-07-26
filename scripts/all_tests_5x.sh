@@ -75,10 +75,10 @@ for i in {1..5}; do
         cat > "$slurm_file" <<EOL
 #!/bin/bash
 #SBATCH --account=def-cfwelch
-#SBATCH --nodelist=gra[5-6,7-8,10-20,21-27]
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=96G
 #SBATCH --time=5:00
+#SBATCH --gres=gpu:1
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --output=logs/slurm/${output_name}_${i}_slurm.out
