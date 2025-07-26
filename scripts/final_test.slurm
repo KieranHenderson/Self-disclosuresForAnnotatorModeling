@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:h100:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=96G
-#SBATCH --time=2:00:00
+#SBATCH --time=2:30:00
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --output=ft_bert_%j.out
@@ -26,9 +26,9 @@ python src/ft_bert_no_verdicts_topk.py \
 --sbert_dim=768 \
 --user_dim=768 \
 --model_name='sbert' \
---split_type='verdicts' \
+--split_type='sit' \
 --situation='text' \
---authors_embedding_path='data/final_embeddings/verdict_embeddings_postlevel_5.pkl' \
+--authors_embedding_path='data/final_embeddings/verdict_embeddings_sentlevel_5.pkl' \
 --path_to_data='data/' \
 --social_norm='true' \
 --plot_title='post level topk 5' \

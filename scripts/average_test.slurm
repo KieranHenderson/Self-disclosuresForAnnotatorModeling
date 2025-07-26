@@ -28,7 +28,7 @@ python src/ft_bert_no_verdicts_topk_avg.py \
 --model_name='sbert' \
 --split_type='verdicts' \
 --situation='text' \
---authors_embedding_path='data/final_embeddings/verdict_embeddings_cluster_9.pkl' \
---plot_title='cluster 9 situation split' \
+--authors_embedding_path='data/final_embeddings/verdict_embeddings_relationships.pkl' \
+--plot_title='relationships situation split' \
 --path_to_data='data/' \
 --social_norm='true'

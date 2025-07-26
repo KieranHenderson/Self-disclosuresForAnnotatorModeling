@@ -32,15 +32,15 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
     
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        #logging.FileHandler(os.path.join(os.path.expanduser("~/PycharmProjects/perspectivism-personalization/logs"), f"{TIMESTAMP}.log")),
-        logging.FileHandler(os.path.join("logs", f"{TIMESTAMP}.log")),
-        logging.StreamHandler()
-    ]
-)
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format="%(asctime)s [%(levelname)s] %(message)s",
+#     handlers=[
+#         #logging.FileHandler(os.path.join(os.path.expanduser("~/PycharmProjects/perspectivism-personalization/logs"), f"{TIMESTAMP}.log")),
+#         logging.FileHandler(os.path.join("logs", f"{TIMESTAMP}.log")),
+#         logging.StreamHandler()
+#     ]
+# )
 
 
 parser = ArgumentParser()
@@ -72,10 +72,28 @@ parser.add_argument("--dirname", dest="dirname", type=str, default='../data/amit
 parser.add_argument("--results_dir", dest="results_dir", type=str, default='../results')
 parser.add_argument("--model_name", dest="model_name", type=str, required=True) # ['judge_bert', 'sbert'] otherwise exception
 parser.add_argument("--plot_title", dest="plot_title", type=str, default='') # for plotting the results
+parser.add_argument("--log_file", dest="log_file", type=str, default=None) # for logging the results
 
 
 if __name__ == '__main__':
     args = parser.parse_args()
+
+    if args.log_file:
+        log_path = args.log_file
+    else:
+        TIMESTAMP = get_current_timestamp()
+        log_path = os.path.join("logs", f"{TIMESTAMP}.log")
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(os.path.join("logs", f"{log_path}.log")),
+            logging.StreamHandler()
+        ]
+    )
+
+
     print_args(args, logging)
     path_to_data = args.path_to_data
     dirname = args.dirname
@@ -404,9 +422,14 @@ if __name__ == '__main__':
             json.dump(result_logs, f, cls=NpEncoder, indent=2)
 
     # average results
-    averaged_results = results.copy()
-    for i in range(1, len(average_results)):
-        for key in average_results[i].keys():
+    averaged_results = {}
+
+    for key in average_results[0].keys():
+        if key != 'results':
+            averaged_results[key] = 0.0
+
+    for i in range(len(average_results)):
+        for key in averaged_results.keys():
             averaged_results[key] += average_results[i][key]
 
     for key in averaged_results.keys():
@@ -414,3 +437,4 @@ if __name__ == '__main__':
 
     
     logging.info("Averaged results: {}".format(averaged_results))
+    print("Averaged results: {}".format(averaged_results))

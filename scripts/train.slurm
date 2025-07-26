@@ -28,8 +28,8 @@ python src/ft_bert_no_verdicts.py \
 --sbert_dim=768 \
 --user_dim=768 \
 --model_name='sbert' \
---split_type='verdicts' \
+--split_type='sit' \
 --situation='text' \
---authors_embedding_path='data/embeddings/user_post_embeddings_5_random.pkl' \
+--authors_embedding_path='data/embeddings/user_sent_embeddings_5_random.pkl' \
 --path_to_data='data/' \
 --social_norm='true'
