@@ -1,3 +1,6 @@
+#!/bin/bash
+#
+
 python src/ft_bert_no_verdicts_topk.py \
 --use_authors='true' \
 --author_encoder='average' \
@@ -14,4 +17,5 @@ python src/ft_bert_no_verdicts_topk.py \
 --plot_title='Cluster 9' \
 --path_to_data='data/' \
 --social_norm='true' \
+--log_file='test' \
 

@@ -1,7 +1,7 @@
 import torch 
 import torch.nn.functional as F
 import numpy as np
-from constants import DEVICE
+from src.constants import DEVICE
 
 
 def focal_loss(labels, logits, alpha, gamma):

@@ -8,3 +8,4 @@ results
 *.json
 __pycache__
 *.out
+.cache

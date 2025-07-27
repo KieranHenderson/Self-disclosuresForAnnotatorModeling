@@ -4,19 +4,20 @@ import os
 # TODO: load_metric removed in datasets@3.0.0
 # have to use evaluate library
 # from datasets import load_metric
-import evaluate as evaluate2
+# import evaluate as evaluate2
+from sklearn.metrics import accuracy_score
 from numpy import average
 from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 import torch
 from tqdm import tqdm
-from utils.clusters_utils import ListDict
-from utils.loss_functions import CB_loss
-from constants import DEVICE
+from src.utils.clusters_utils import ListDict
+from src.utils.loss_functions import CB_loss
+from src.constants import DEVICE
 import pickle as pkl
-from utils.read_files import read_splits, write_splits
-from utils.utils import get_verdicts_labels_from_sit, get_verdicts_labels_from_authors
-from constants import SEED
+from src.utils.read_files import read_splits, write_splits
+from src.utils.utils import get_verdicts_labels_from_sit, get_verdicts_labels_from_authors
+from src.constants import SEED
 import logging
 
 
@@ -135,8 +136,25 @@ def get_verdicts_by_author_split(dataset):
 
 
 def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, demo_embedder=None, USE_DEMOS=False, return_predictions=False):
-    accuracy_metric = evaluate2.load("accuracy")
-    f1_metric = evaluate2.load("f1")
+    from sklearn.metrics import accuracy_score, f1_score
+        
+    class SklearnMetric:
+        def __init__(self):
+            self.preds = []
+            self.refs = []
+        
+        def add_batch(self, predictions, references):
+            self.preds.extend(predictions.cpu().numpy())
+            self.refs.extend(references.cpu().numpy())
+        
+        def compute(self, average=None):
+            if average:
+                return {'f1': f1_score(self.refs, self.preds, average=average)}
+            return {'accuracy': accuracy_score(self.refs, self.preds)}
+    
+    accuracy_metric = SklearnMetric()
+    f1_metric = SklearnMetric()
+
     
     model.eval()
     if USE_AUTHORS and author_encoder == 'graph': 
@@ -145,6 +163,8 @@ def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, datase
     all_ids = ['verdicts']
     all_pred = ['predictions']
     all_labels = ['gold labels']
+
+    # print("starting for loop")
     
     for batch in dataloader:
         verdicts_index = batch.pop("index")
@@ -152,6 +172,7 @@ def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, datase
         batch = {k: v.to(DEVICE) for k, v in batch.items()}
         labels = batch.pop("labels")
 
+        # print("with")
         with torch.no_grad():
             if USE_AUTHORS and  (author_encoder == 'average' or author_encoder == 'attribution'):
                 if USE_DEMOS:
@@ -168,6 +189,7 @@ def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, datase
             else:
                 logits = model(batch)
 
+        # print("metrics")
         predictions = torch.argmax(logits, dim=-1)
         accuracy_metric.add_batch(predictions=predictions, references=labels)
         f1_metric.add_batch(predictions=predictions, references=labels)
@@ -190,74 +212,195 @@ def evaluate(dataloader, model, graph_model, data, embedder, USE_AUTHORS, datase
 
 
 
+# def evaluate_similar(dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=False):
+#     import evaluate as evaluate2
+#     from sklearn.metrics import f1_score
+
+#     # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     print("Evaluating model", flush=True)
+#     accuracy_metric = evaluate2.load("accuracy")
+#     f1_metric = evaluate2.load("f1")
+
+#     model.eval()
+
+#     all_ids = ['verdicts']
+#     all_pred = ['predictions']
+#     all_labels = ['gold labels']
+
+#     print("starting for loop", flush=True)
+#     for batch in dataloader:
+#         verdicts_index = batch.pop("index")
+#         author_node_idx = batch.pop("author_node_idx")
+#         batch = {k: v.to(DEVICE) for k, v in batch.items()}
+#         labels = batch.pop("labels")
+#         print("with", flush=True)
+#         with torch.no_grad():
+#             if USE_AUTHORS and (author_encoder in {'average', 'attribution'}):
+#                 valid_embeddings = []
+#                 valid_masks = []
+#                 valid_labels = []
+
+#                 for i, idx in enumerate(verdicts_index):
+#                     verdict_id = dataset.idToVerdict[idx.item()]
+#                     try:
+#                         emb = embedder.embed_verdict(verdict_id)
+#                         valid_embeddings.append(emb)
+#                         valid_masks.append(i)
+#                         valid_labels.append(labels[i].item())
+#                     except KeyError:
+#                         logging.warning(f"⚠️ Verdict ID {verdict_id} not found in embeddings. Skipping.")
+
+#                 if len(valid_embeddings) == 0:
+#                     continue
+
+#                 print("valid embeddings", flush=True)
+#                 batch = {k: v[valid_masks].to(DEVICE) for k, v in batch.items()}
+#                 labels = torch.tensor(valid_labels, dtype=torch.long).to(DEVICE)
+#                 verdict_embeddings = torch.stack(valid_embeddings).to(DEVICE)
+#                 logits = model(batch, verdict_embeddings)
+
+#             else:
+#                 logits = model(batch)
+
+#         print("metrics", flush=True)
+#         predictions = torch.argmax(logits, dim=-1)
+#         accuracy_metric.add_batch(predictions=predictions, references=labels)
+#         f1_metric.add_batch(predictions=predictions, references=labels)
+#         all_pred.extend(predictions.cpu().numpy())
+#         all_labels.extend(labels.cpu().numpy())
+#         all_ids.extend([dataset.idToVerdict[idx.item()] for idx in verdicts_index])
+
+#     print("calculating results", flush=True)
+#     results_dict = {
+#         'accuracy': accuracy_metric.compute()['accuracy'],
+#         'f1_weighted': f1_metric.compute(average='weighted')['f1'],
+#         'macro': f1_score(all_labels[1:], all_pred[1:], average='macro'),
+#         'micro': f1_score(all_labels[1:], all_pred[1:], average='micro'),
+#         'binary': f1_score(all_labels[1:], all_pred[1:], average='binary')
+#     }
+
+#     print("return", results_dict, flush=True)
+
+#     if return_predictions:
+#         results_dict['results'] = list(zip(all_ids, all_pred, all_labels))
+
+#     return results_dict
+
+
+
 def evaluate_similar(dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=False):
-    import evaluate as evaluate2
-    from sklearn.metrics import f1_score
+    # print("\n==== Starting Evaluation ====", flush=True)
+    
+    try:
+        # Initialize metrics
+        # print("Loading metrics...", flush=True)
+        
+        
+        from sklearn.metrics import accuracy_score, f1_score
+        
+        class SklearnMetric:
+            def __init__(self):
+                self.preds = []
+                self.refs = []
+            
+            def add_batch(self, predictions, references):
+                self.preds.extend(predictions.cpu().numpy())
+                self.refs.extend(references.cpu().numpy())
+            
+            def compute(self, average=None):
+                if average:
+                    return {'f1': f1_score(self.refs, self.preds, average=average)}
+                return {'accuracy': accuracy_score(self.refs, self.preds)}
+        
+        accuracy_metric = SklearnMetric()
+        f1_metric = SklearnMetric()
 
-    # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    accuracy_metric = evaluate2.load("accuracy")
-    f1_metric = evaluate2.load("f1")
-
-    model.eval()
-
-    all_ids = ['verdicts']
-    all_pred = ['predictions']
-    all_labels = ['gold labels']
-
-    for batch in dataloader:
-        verdicts_index = batch.pop("index")
-        author_node_idx = batch.pop("author_node_idx")
-        batch = {k: v.to(DEVICE) for k, v in batch.items()}
-        labels = batch.pop("labels")
-
-        with torch.no_grad():
-            if USE_AUTHORS and (author_encoder in {'average', 'attribution'}):
-                valid_embeddings = []
-                valid_masks = []
-                valid_labels = []
-
-                for i, idx in enumerate(verdicts_index):
-                    verdict_id = dataset.idToVerdict[idx.item()]
-                    try:
-                        emb = embedder.embed_verdict(verdict_id)
-                        valid_embeddings.append(emb)
-                        valid_masks.append(i)
-                        valid_labels.append(labels[i].item())
-                    except KeyError:
-                        logging.warning(f"⚠️ Verdict ID {verdict_id} not found in embeddings. Skipping.")
-
-                if len(valid_embeddings) == 0:
-                    continue
-
-                batch = {k: v[valid_masks].to(DEVICE) for k, v in batch.items()}
-                labels = torch.tensor(valid_labels, dtype=torch.long).to(DEVICE)
-                verdict_embeddings = torch.stack(valid_embeddings).to(DEVICE)
-                logits = model(batch, verdict_embeddings)
-
-            else:
-                logits = model(batch)
-
-        predictions = torch.argmax(logits, dim=-1)
-        accuracy_metric.add_batch(predictions=predictions, references=labels)
-        f1_metric.add_batch(predictions=predictions, references=labels)
-        all_pred.extend(predictions.cpu().numpy())
-        all_labels.extend(labels.cpu().numpy())
-        all_ids.extend([dataset.idToVerdict[idx.item()] for idx in verdicts_index])
-
-    results_dict = {
-        'accuracy': accuracy_metric.compute()['accuracy'],
-        'f1_weighted': f1_metric.compute(average='weighted')['f1'],
-        'macro': f1_score(all_labels[1:], all_pred[1:], average='macro'),
-        'micro': f1_score(all_labels[1:], all_pred[1:], average='micro'),
-        'binary': f1_score(all_labels[1:], all_pred[1:], average='binary')
-    }
-
-    if return_predictions:
-        results_dict['results'] = list(zip(all_ids, all_pred, all_labels))
-
-    return results_dict
-
+        model.eval()
+        
+        # Tracking variables
+        all_ids = ['verdicts']
+        all_pred = ['predictions'] 
+        all_labels = ['gold labels']
+        
+        # print(f"Processing {len(dataloader)} batches...", flush=True)
+        for batch_idx, batch in enumerate(dataloader):
+            # print(f"\nBatch {batch_idx} - Loading data...", flush=True)
+            verdicts_index = batch.pop("index")
+            author_node_idx = batch.pop("author_node_idx")
+            batch = {k: v.to(DEVICE) for k, v in batch.items()}
+            labels = batch.pop("labels")
+            
+            try:
+                with torch.no_grad():
+                    # print("Batch processing started", flush=True)
+                    
+                    if USE_AUTHORS and (author_encoder in {'average', 'attribution'}):
+                        # print("Processing author embeddings...", flush=True)
+                        valid_embeddings = []
+                        valid_masks = []
+                        valid_labels = []
+                        
+                        for i, idx in enumerate(verdicts_index):
+                            verdict_id = dataset.idToVerdict[idx.item()]
+                            try:
+                                emb = embedder.embed_verdict(verdict_id)
+                                valid_embeddings.append(emb)
+                                valid_masks.append(i)
+                                valid_labels.append(labels[i].item())
+                            except KeyError:
+                                # print(f"Skipping missing verdict {verdict_id}", flush=True)
+                                continue
+                        
+                        if not valid_embeddings:
+                            # print("No valid embeddings in batch, skipping", flush=True)
+                            continue
+                            
+                        batch = {k: v[valid_masks].to(DEVICE) for k, v in batch.items()}
+                        labels = torch.tensor(valid_labels, dtype=torch.long).to(DEVICE)
+                        verdict_embeddings = torch.stack(valid_embeddings).to(DEVICE)
+                        # print("Running model with author embeddings...", flush=True)
+                        logits = model(batch, verdict_embeddings)
+                    else:
+                        # print("Running model without author embeddings...", flush=True)
+                        logits = model(batch)
+                    
+                    torch.cuda.synchronize()
+                    # print("Model inference complete", flush=True)
+                    
+                    # Calculate predictions
+                    predictions = torch.argmax(logits, dim=-1)
+                    accuracy_metric.add_batch(predictions=predictions, references=labels)
+                    f1_metric.add_batch(predictions=predictions, references=labels)
+                    
+                    # Store results
+                    all_pred.extend(predictions.cpu().numpy())
+                    all_labels.extend(labels.cpu().numpy())
+                    all_ids.extend([dataset.idToVerdict[idx.item()] for idx in verdicts_index])
+                    
+                    # print(f"Batch {batch_idx} processed successfully", flush=True)
+                    
+            except Exception as e:
+                # print(f"Error in batch {batch_idx}: {str(e)}", flush=True)
+                raise
+        
+        # print("\nCalculating final metrics...", flush=True)
+        results_dict = {
+            'accuracy': accuracy_metric.compute()['accuracy'],
+            'f1_weighted': f1_metric.compute(average='weighted')['f1'],
+            'macro': f1_score(all_labels[1:], all_pred[1:], average='macro'),
+            'micro': f1_score(all_labels[1:], all_pred[1:], average='micro'),
+            'binary': f1_score(all_labels[1:], all_pred[1:], average='binary')
+        }
+        
+        if return_predictions:
+            results_dict['results'] = list(zip(all_ids, all_pred, all_labels))
+        
+        # print("==== Evaluation Completed ====", flush=True)
+        return results_dict
+        
+    except Exception as e:
+        # print(f"Evaluation failed: {str(e)}", flush=True)
+        raise
 
 
 

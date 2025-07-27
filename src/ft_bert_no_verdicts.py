@@ -69,6 +69,7 @@ parser.add_argument("--bert_tok", dest="bert_tok", default='bert-base-uncased', 
 parser.add_argument("--dirname", dest="dirname", type=str, default='../data/amit_filtered_history')
 parser.add_argument("--results_dir", dest="results_dir", type=str, default='../results')
 parser.add_argument("--model_name", dest="model_name", type=str, required=True) # ['judge_bert', 'sbert'] otherwise exception
+parser.add_argument("--plot_title", dest="plot_title", type=str, default='') # for plotting the results
 parser.add_argument("--log_file", dest="log_file", type=str, default=None) # for logging the results
 
 
@@ -265,9 +266,19 @@ if __name__ == '__main__':
     
 
     if model_name == 'sbert':
+    
         logging.info("Training with SBERT, model name is {}".format(model_name))
-        tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
-        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim, dropout_rate=dropout_rate)
+
+        local_path = "/home/kieranh/projects/def-cfwelch/kieranh/Self-disclosuresForAnnotatorModeling/.cache/huggingface/hub/models--sentence-transformers--all-distilroberta-v1/snapshots/842eaed40bee4d61673a81c92d5689a8fed7a09f"  # Use actual snapshot hash
+        # model = AutoModel.from_pretrained(local_path)
+        # tokenizer = AutoTokenizer.from_pretrained(local_path)
+
+        tokenizer = AutoTokenizer.from_pretrained(local_path)
+        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=local_path, sbert_dim=args.sbert_dim, dropout_rate=dropout_rate)
+    # elif model_name == 'judge_bert':
+    #     logging.info("Training with Judge Bert, model name is {}".format(model_name))
+    #     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+    #     model = JudgeBert()
     else:
         raise Exception('Wrong model name')
     

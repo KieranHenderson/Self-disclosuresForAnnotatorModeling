@@ -64,7 +64,7 @@ parser.add_argument("--num_epochs", dest="num_epochs", default=10, type=int)
 parser.add_argument("--learning_rate", dest="learning_rate", default=1e-5, type=float)
 parser.add_argument("--dropout_rate", dest="dropout_rate", default=0.2, type=float)
 parser.add_argument("--weight_decay", dest="weight_decay", default=1e-2, type=float)
-parser.add_argument("--batch_size", dest="batch_size", default=32, type=int)
+parser.add_argument("--batch_size", dest="batch_size", default=8, type=int)
 parser.add_argument("--loss_type", dest="loss_type", default='softmax', type=str)
 parser.add_argument("--verdicts_dir", dest="verdicts_dir", default='../data/verdicts', type=str)
 parser.add_argument("--bert_tok", dest="bert_tok", default='bert-base-uncased', type=str)
@@ -234,9 +234,15 @@ if __name__ == '__main__':
     
 
     if model_name == 'sbert':
+    
         logging.info("Training with SBERT, model name is {}".format(model_name))
-        tokenizer = AutoTokenizer.from_pretrained(bert_checkpoint)
-        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=args.sbert_model, sbert_dim=args.sbert_dim, dropout_rate=dropout_rate)
+
+        local_path = "/home/kieranh/projects/def-cfwelch/kieranh/Self-disclosuresForAnnotatorModeling/.cache/huggingface/hub/models--sentence-transformers--all-distilroberta-v1/snapshots/842eaed40bee4d61673a81c92d5689a8fed7a09f"  # Use actual snapshot hash
+        # model = AutoModel.from_pretrained(local_path)
+        # tokenizer = AutoTokenizer.from_pretrained(local_path)
+
+        tokenizer = AutoTokenizer.from_pretrained(local_path)
+        model = SentBertClassifier(users_layer=USE_AUTHORS, user_dim=args.user_dim, sbert_model=local_path, sbert_dim=args.sbert_dim, dropout_rate=dropout_rate)
     # elif model_name == 'judge_bert':
     #     logging.info("Training with Judge Bert, model name is {}".format(model_name))
     #     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
@@ -301,17 +307,20 @@ if __name__ == '__main__':
     val_f1_scores = []
     train_losses = []  # This will store average loss per epoch
     epochs = []
-
+    # print("Starting training", flush=True)
     for epoch in range(num_epochs):
         model.train()
         epoch_losses = []  # This will store losses for each batch in the current epoch
-            
+        
+        # print(f"Epoch {epoch + 1}/{num_epochs}")
         for batch in train_dataloader:
+            # print("top of the loop", flush=True)
             verdicts_index = batch.pop("index")
             author_node_idx = batch.pop("author_node_idx")
             batch = {k: v.to(DEVICE) for k, v in batch.items()}
             labels = batch.pop("labels")
             
+            # print("calculating output", flush=True)
             if USE_AUTHORS and (author_encoder == 'average' or author_encoder == 'attribution'):
                 try:
                     verdict_embeddings = torch.stack([embedder.embed_verdict(dataset.idToVerdict[index.item()]) for index in verdicts_index]).to(DEVICE)
@@ -321,23 +330,24 @@ if __name__ == '__main__':
                 output = model(batch, verdict_embeddings)
             else: 
                 output = model(batch)
-            
+            # print("calculating loss", flush=True)
             loss = loss_fn(output, labels, samples_per_class_train, loss_type=loss_type)
             epoch_losses.append(loss.item())
             loss.backward()
             
+            # print("update", flush=True)
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
             progress_bar.update(1)
-        
+        # print("calculating average loss for epoch", flush=True)
         # Calculate and store average epoch loss
         avg_epoch_loss = sum(epoch_losses) / len(epoch_losses)
         train_losses.append(avg_epoch_loss)
-        
+        # print("evaluating validation", flush=True)
         val_metric = evaluate_similar(eval_dataloader, model, embedder, USE_AUTHORS, dataset, author_encoder)
         val_metrics.append(val_metric)
-
+        # print("store validation metrics", flush=True)
         # Store validation metrics
         val_accuracies.append(val_metric['accuracy'])
         val_f1_scores.append(val_metric['macro'])
@@ -358,7 +368,7 @@ if __name__ == '__main__':
     plt.title(f'{args.plot_title}')
     plt.legend()
     loss_plot_path = os.path.join('results/graphs', f'{args.plot_title}.png')
-    plt.savefig(loss_plot_path)
+    # plt.savefig(loss_plot_path)
     plt.close()
 
 
