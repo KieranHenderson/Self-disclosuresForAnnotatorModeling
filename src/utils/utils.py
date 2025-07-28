@@ -1,10 +1,10 @@
 import datetime
 import string
-from src.utils.clusters_utils import ListDict
+from utils.clusters_utils import ListDict
 from tqdm import tqdm 
 import re
 import emoji
-from src.constants import DATETIME_PATTERN, NTA_KEYWORDS, YTA_KEYWORDS
+from constants import DATETIME_PATTERN, NTA_KEYWORDS, YTA_KEYWORDS
 import argparse
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 import torch

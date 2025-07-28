@@ -94,6 +94,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    print("Starting diverse verdict embeddings generation...", flush=True)
+
     logging.info("Loading precomputed comment embeddings from %s", args.comment_embeddings_path)
     with open(args.comment_embeddings_path, 'rb') as f:
         comment_embeddings = pkl.load(f)
@@ -105,6 +107,7 @@ if __name__ == '__main__':
     logging.info("Loading Social Chemistry and Social Norms datasets")
     social_chemistry = pd.read_csv(os.path.join(args.path_to_data, 'social_chemistry_clean_with_fulltexts.csv'))
     social_comments = pd.read_csv(os.path.join(args.path_to_data, 'social_norms_clean.csv'), encoding="utf8")
+    social_comments = social_comments.sample(10000)  # Sample for faster processing
     dataset = SocialNormDataset(social_comments, social_chemistry)
 
     logging.info("Loading BERT model: %s", args.bert_model)

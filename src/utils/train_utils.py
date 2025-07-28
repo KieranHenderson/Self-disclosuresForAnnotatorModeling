@@ -11,13 +11,13 @@ from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 import torch
 from tqdm import tqdm
-from src.utils.clusters_utils import ListDict
-from src.utils.loss_functions import CB_loss
-from src.constants import DEVICE
+from utils.clusters_utils import ListDict
+from utils.loss_functions import CB_loss
+from constants import DEVICE
 import pickle as pkl
-from src.utils.read_files import read_splits, write_splits
-from src.utils.utils import get_verdicts_labels_from_sit, get_verdicts_labels_from_authors
-from src.constants import SEED
+from utils.read_files import read_splits, write_splits
+from utils.utils import get_verdicts_labels_from_sit, get_verdicts_labels_from_authors
+from constants import SEED
 import logging
 
 

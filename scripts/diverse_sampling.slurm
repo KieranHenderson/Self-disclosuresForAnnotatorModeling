@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --account=def-cfwelch
-#SBATCH --gres=gpu:h100:1
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=96G
-#SBATCH --time=10:00:00
+#SBATCH --time=2:59:00
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --output=ft_bert_%j.out
@@ -21,8 +21,8 @@ python src/diverse_sampling.py \
   --post_embeddings_path="data/embeddings/precomputed_post_embeddings_postlevel.pkl" \
   --path_to_data="data/" \
   --output_dir="data/final_embeddings/" \
-  --output_file_name="diverse_sampling_manual" \
+  --output_file_name="diverse_sampling_all" \
   --persona_data_dir="data/persona_data" \
   --bert_model="sentence-transformers/all-distilroberta-v1" \
-  --use_manual=False \
+  --use_manual=True \
   --use_clusters=True

@@ -3,8 +3,8 @@ import glob
 import os
 from tqdm import tqdm
 
-from src.utils.utils import remove_extra_spaces
-from src.utils.clusters_utils import ListDict
+from utils.utils import remove_extra_spaces
+from utils.clusters_utils import ListDict
 import pandas as pd
 
 
