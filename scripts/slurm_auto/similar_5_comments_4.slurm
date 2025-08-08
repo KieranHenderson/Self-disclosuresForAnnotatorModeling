@@ -2,7 +2,7 @@
 #SBATCH --account=def-cfwelch
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=96G
-#SBATCH --time=5:00:00
+#SBATCH --time=2:50:00
 #SBATCH --gres=gpu:1
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END

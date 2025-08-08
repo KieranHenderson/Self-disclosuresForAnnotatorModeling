@@ -64,7 +64,7 @@ parser.add_argument("--num_epochs", dest="num_epochs", default=10, type=int)
 parser.add_argument("--learning_rate", dest="learning_rate", default=1e-5, type=float)
 parser.add_argument("--dropout_rate", dest="dropout_rate", default=0.2, type=float)
 parser.add_argument("--weight_decay", dest="weight_decay", default=1e-2, type=float)
-parser.add_argument("--batch_size", dest="batch_size", default=8, type=int)
+parser.add_argument("--batch_size", dest="batch_size", default=32, type=int)
 parser.add_argument("--loss_type", dest="loss_type", default='softmax', type=str)
 parser.add_argument("--verdicts_dir", dest="verdicts_dir", default='../data/verdicts', type=str)
 parser.add_argument("--bert_tok", dest="bert_tok", default='bert-base-uncased', type=str)
@@ -255,6 +255,9 @@ if __name__ == '__main__':
     
     ds = DatasetDict()
 
+    print("raw_dataset size: ", {k: len(v['text']) for k, v in raw_dataset.items()})
+
+
     for split, d in raw_dataset.items():
         ds[split] = Dataset.from_dict(mapping=d, features=Features({'label': Value(dtype='int64'), 'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
     
@@ -281,6 +284,10 @@ if __name__ == '__main__':
     test_dataloader = DataLoader(
         tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
     )
+
+    print("Train dataloader size: ", len(train_dataloader))
+    print("Eval dataloader size: ", len(eval_dataloader))
+    print("Test dataloader size: ", len(test_dataloader))
 
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     

@@ -284,12 +284,14 @@ if __name__ == '__main__':
     
     
     model.to(DEVICE)
+
+    print("raw_dataset size: ", {k: len(v['text']) for k, v in raw_dataset.items()})
     
     ds = DatasetDict()
 
     for split, d in raw_dataset.items():
         ds[split] = Dataset.from_dict(mapping=d, features=Features({'label': Value(dtype='int64'), 
-                                                                        'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
+        'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
     
     def tokenize_function(example):
         return tokenizer(example["text"], truncation=True)
@@ -310,6 +312,7 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(
         tokenized_dataset["train"], batch_size=batch_size, collate_fn=data_collator, shuffle = True
     )
+
     eval_dataloader = DataLoader(
         tokenized_dataset["val"], batch_size=batch_size, collate_fn=data_collator
     )
@@ -317,6 +320,10 @@ if __name__ == '__main__':
     test_dataloader = DataLoader(
         tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
     )
+
+    print("Train dataloader size: ", len(train_dataloader))
+    print("Eval dataloader size: ", len(eval_dataloader))
+    print("Test dataloader size: ", len(test_dataloader))
 
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     
