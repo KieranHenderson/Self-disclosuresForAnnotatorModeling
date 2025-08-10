@@ -8,5 +8,6 @@ class VerdictEmbedder:
 
     def embed_verdict(self, verdict_id):
         if verdict_id not in self.embeddings:
+            print("skipping!!!!")
             raise KeyError(f"Verdict ID '{verdict_id}' not found in embeddings.")
         return torch.tensor(self.embeddings[verdict_id], dtype=torch.float32)

@@ -358,6 +358,7 @@ if __name__ == '__main__':
                 authors_embeddings = torch.stack([embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
                 output = model(batch, authors_embeddings)
             else:
+                print("not using embeddings")
                 output = model(batch)
             
             loss = loss_fn(output, labels, samples_per_class_train, loss_type=loss_type)

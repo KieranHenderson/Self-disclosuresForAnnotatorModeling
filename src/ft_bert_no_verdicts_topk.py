@@ -328,16 +328,26 @@ if __name__ == '__main__':
             labels = batch.pop("labels")
             
             # print("calculating output", flush=True)
-            if USE_AUTHORS and (author_encoder == 'average' or author_encoder == 'attribution'):
-                try:
-                    verdict_embeddings = torch.stack([embedder.embed_verdict(dataset.idToVerdict[index.item()]) for index in verdicts_index]).to(DEVICE)
-                except KeyError as e:
-                    logging.warning(f"Missing embedding for verdict_id {e}. Skipping this batch.")
-                    continue
+            
+           
+            if USE_AUTHORS and  (author_encoder == 'average' or author_encoder == 'attribution'):
+                verdict_embeddings = torch.stack([embedder.embed_verdict(dataset.idToVerdict[index.item()]) for index in verdicts_index]).to(DEVICE)            
                 output = model(batch, verdict_embeddings)
-            else: 
+            else:
+                print("Not using embeddings")
                 output = model(batch)
-            # print("calculating loss", flush=True)
+
+           #     try:
+           #    verdict_embeddings = torch.stack([embedder.embed_verdict(dataset.idToVerdict[index.item()]) for index in verdicts_index]).to(DEVICE)
+           #     except KeyError as e:
+           #         logging.warning(f"Missing embedding for verdict_id {e}. Skipping this batch.")
+           #         continue
+           #     output = model(batch, verdict_embeddings)
+           # else: 
+           #     output = model(batch)
+           
+
+           # print("calculating loss", flush=True)
             loss = loss_fn(output, labels, samples_per_class_train, loss_type=loss_type)
             epoch_losses.append(loss.item())
             loss.backward()
