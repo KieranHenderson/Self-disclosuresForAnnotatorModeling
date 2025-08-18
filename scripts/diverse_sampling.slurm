@@ -6,7 +6,7 @@
 #SBATCH --time=2:59:00
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END
-#SBATCH --output=ft_bert_%j.out
+#SBATCH --output=diverse_sampling_clusters.out
 
 module load python/3.11
 module load StdEnv/2023
@@ -21,8 +21,8 @@ python src/diverse_sampling.py \
   --post_embeddings_path="data/embeddings/precomputed_post_embeddings_postlevel.pkl" \
   --path_to_data="data/" \
   --output_dir="data/final_embeddings/" \
-  --output_file_name="diverse_sampling_all" \
+  --output_file_name="diverse_sampling_clusters" \
   --persona_data_dir="data/persona_data" \
   --bert_model="sentence-transformers/all-distilroberta-v1" \
-  --use_manual=True \
+  --use_manual=False \
   --use_clusters=True

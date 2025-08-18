@@ -21,6 +21,6 @@ python src/users_sbert_embeddings_random.py \
 --dirname='data/amit_filtered_history/' \
 --output_dir='data/embeddings/' \
 --embed_sentences='false' \
---posts_per_author='true' \
---output_file_name='baseline_embeddings' \
+--posts_per_author='1000000' \
+--output_file_name='baseline_embeddings_all' \
 --random_sampling='true' \
