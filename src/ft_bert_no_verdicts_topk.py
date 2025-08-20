@@ -1,3 +1,8 @@
+"""
+Fine-tune SBERT model on AITA verdicts using top-k most similar comments from authors.
+"""
+
+
 from verdict_embedder import VerdictEmbedder
 
 import sys
@@ -31,16 +36,6 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
-    
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format="%(asctime)s [%(levelname)s] %(message)s",
-#     handlers=[
-#         #logging.FileHandler(os.path.join(os.path.expanduser("~/PycharmProjects/perspectivism-personalization/logs"), f"{TIMESTAMP}.log")),
-#         logging.FileHandler(os.path.join("logs", f"{TIMESTAMP}.log")),
-#         logging.StreamHandler()
-#     ]
-# )
 
 
 parser = ArgumentParser()
@@ -158,7 +153,6 @@ if __name__ == '__main__':
     
     if USE_AUTHORS and (author_encoder == 'average' or author_encoder == 'attribution'):
         print(f"Loaded authors embeddings from {authors_embedding_path}")
-        # embedder = AuthorsEmbedder(embeddings_path=authors_embedding_path, dim=args.user_dim)
         embedder = VerdictEmbedder(embeddings_path=authors_embedding_path)
     else:
         embedder = None
@@ -235,6 +229,8 @@ if __name__ == '__main__':
 
     if model_name == 'sbert':
     
+        # If the server has no internet access, we need to load the model from a local path
+
         logging.info("Training with SBERT, model name is {}".format(model_name))
 
         local_path = "/home/kieranh/projects/def-cfwelch/kieranh/Self-disclosuresForAnnotatorModeling/.cache/huggingface/hub/models--sentence-transformers--all-distilroberta-v1/snapshots/842eaed40bee4d61673a81c92d5689a8fed7a09f"  # Use actual snapshot hash
@@ -314,20 +310,16 @@ if __name__ == '__main__':
     val_f1_scores = []
     train_losses = []  # This will store average loss per epoch
     epochs = []
-    # print("Starting training", flush=True)
     for epoch in range(num_epochs):
         model.train()
         epoch_losses = []  # This will store losses for each batch in the current epoch
         
-        # print(f"Epoch {epoch + 1}/{num_epochs}")
         for batch in train_dataloader:
-            # print("top of the loop", flush=True)
             verdicts_index = batch.pop("index")
             author_node_idx = batch.pop("author_node_idx")
             batch = {k: v.to(DEVICE) for k, v in batch.items()}
             labels = batch.pop("labels")
             
-            # print("calculating output", flush=True)
             
            
             if USE_AUTHORS and  (author_encoder == 'average' or author_encoder == 'attribution'):
@@ -337,14 +329,6 @@ if __name__ == '__main__':
                 print("Not using embeddings")
                 output = model(batch)
 
-           #     try:
-           #    verdict_embeddings = torch.stack([embedder.embed_verdict(dataset.idToVerdict[index.item()]) for index in verdicts_index]).to(DEVICE)
-           #     except KeyError as e:
-           #         logging.warning(f"Missing embedding for verdict_id {e}. Skipping this batch.")
-           #         continue
-           #     output = model(batch, verdict_embeddings)
-           # else: 
-           #     output = model(batch)
            
 
            # print("calculating loss", flush=True)
@@ -431,10 +415,7 @@ if __name__ == '__main__':
 
 
     
-    
-    #res_file = os.path.join(results_dir, TIMESTAMP + ".json")
-    # res_file = os.path.join(r'C:\Users\User\PycharmProjects\perspectivism-personalization\results',
-    #                               f'{TIMESTAMP}.json')
+
     res_file = os.path.join(r'results',
                                   f'{TIMESTAMP}.json')
     with open(res_file, mode='w') as f:

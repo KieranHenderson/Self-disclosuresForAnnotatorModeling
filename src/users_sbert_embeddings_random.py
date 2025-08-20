@@ -1,3 +1,7 @@
+"""
+Generate the embeddings for random and baseline tests
+"""
+
 import pandas as pd
 import glob
 import os
@@ -175,6 +179,9 @@ if __name__ == '__main__':
 
     print("Using {} model".format(args.bert_model))
 
+
+    # If the server has no internet access, we need to load the model from a local path
+
     # Load model from HuggingFace Hub
     # tokenizer = AutoTokenizer.from_pretrained(args.bert_model)
     # model = AutoModel.from_pretrained(args.bert_model).to(DEVICE)
@@ -198,38 +205,19 @@ if __name__ == '__main__':
 
 
     DEBUG = False
-
-    # at_least_5 = 0
-    # at_least_1 = 0
     
     if embed_sentences == False:
         print("Embedding posts")
         # NOTE: Process & generate the embeddings for each author for each POST of the author and then average the embeddings together 
         for author, posts in tqdm(authors_vocab.items(), desc="Embedding authors"):
             sys.stdout.flush()
-            # print(author)
-            # print("post len: {}".format(len(posts)))
-            # print("example post: {}".format(posts[0] if len(posts) > 0 else "No posts"))
-
-            # if len(posts) > 0:
-            #     at_least_1 += 1
 
             if all_posts == "all":
-                pass
-
-            # elif len(posts) >= posts_per_author:
-
-                # if random_sampling and len(posts) > posts_per_author and posts_per_author > 0:
-                #     # Randomly sample posts from the author
-                #     # at_least_5 += 1
-                #     posts = random.sample(posts, k=posts_per_author)
-                # elif posts_per_author == 0: 
-                #     # If posts_per_author is 0, use no posts
-                #     posts = []
-                # else:
-                #     print("Error: posts_per_author is set to {} but author {} has only {} posts".format(posts_per_author, author, len(posts)))
-
-            if len(posts) <= posts_per_author:
+                pass # use all posts
+            elif posts_per_author == 0:
+                # If posts_per_author is 0, use no posts
+                posts = []
+            elif len(posts) <= posts_per_author:
                 # use all posts if posts_per_author is less than or equal to the number of posts
                 posts = posts
             elif len(posts) > posts_per_author and random_sampling:
@@ -256,14 +244,11 @@ if __name__ == '__main__':
                     embeddings.append(post_embeddings.cpu())
             
             # Concatenate all embeddings before averaging
-            # all_embeddings = torch.cat(embeddings)
-            # user_embeddings[author] = all_embeddings.mean(axis=0).numpy()
             if embeddings:
                 all_embeddings = torch.cat(embeddings)
                 user_embeddings[author] = all_embeddings.mean(axis=0).numpy()
             else:
                 # Handle case where no embeddings were generated
-                # You might want to assign a zero vector or skip this author
                 user_embeddings[author] = np.zeros(model.config.hidden_size)  # Adjust based on your model's embedding size
 
             if DEBUG:

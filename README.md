@@ -1,4 +1,8 @@
-# Unifying Data Perspectivism and Personalization: An Application to Social Norms
+# TODO
+
+# OLD README
+
+## Unifying Data Perspectivism and Personalization: An Application to Social Norms
 Codebase for EMNLP22 work Unifying Data Perspectivism and Personalization: An Application to Social Norms and NLP+CSS work Understanding Interpersonal Conflict Types and their Impact on Perception Classification
 
 ## Dataset

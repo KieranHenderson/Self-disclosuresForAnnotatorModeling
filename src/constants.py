@@ -1,3 +1,7 @@
+"""
+General constants used throughout the codebase.
+"""
+
 import torch 
 
 # define device

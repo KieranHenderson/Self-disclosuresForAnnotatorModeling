@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# This script generates and queues slurm job files for running various tests on the model. You can comment out the jobs you don't want to run.
+
 # Each job config line: plot_title|embedding_path|output_name
 declare -a job_configs=(
     # || TABLE 4 TESTS || #

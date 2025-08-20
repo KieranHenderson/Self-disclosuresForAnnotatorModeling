@@ -1,3 +1,7 @@
+"""
+Generates diverse verdict embeddings by selecting top comments from various persona sets rather than just one.
+"""
+
 import os
 import json
 import pickle as pkl

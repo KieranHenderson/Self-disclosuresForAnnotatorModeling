@@ -1,3 +1,7 @@
+"""
+Embedder for verdicts using precomputed embeddings.
+"""
+
 import pickle
 import torch
 

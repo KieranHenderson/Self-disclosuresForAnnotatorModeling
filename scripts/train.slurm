@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END
-#SBATCH --output=logs/slurm/random_train_long.out
+#SBATCH --output=logs/slurm/baseline_zero_train.out
 
 module load python/3.11
 module load StdEnv/2023
@@ -17,7 +17,7 @@ module load arrow/18.1.0
 
 source env/bin/activate
 python src/ft_bert_no_verdicts.py \
---use_authors='true' \
+--use_authors='false' \
 --author_encoder='average' \
 --loss_type='focal' \
 --num_epochs=10 \
@@ -29,7 +29,7 @@ python src/ft_bert_no_verdicts.py \
 --split_type='sit' \
 --situation='text' \
 --authors_embedding_path='data/embeddings/baseline_embeddings_zero.pkl' \
---plot_title='Zero Baseline' \
+--plot_title='Zero Embedding Baseline' \
 --path_to_data='data/' \
 --social_norm='true' \
 --log_file='baseline_zero_train'
