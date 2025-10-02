@@ -1,3 +1,7 @@
+"""
+Generate the embeddings for random and baseline tests
+"""
+
 import pandas as pd
 import glob
 import os
@@ -13,10 +17,11 @@ import torch.nn.functional as F
 import numpy as np
 from argparse import ArgumentParser
 from dataset import SocialNormDataset
-from nltk.tokenize import sent_tokenize
+print("loading nltk data")
 import nltk
-nltk.download('punkt')
-nltk.download('punkt_tab')
+nltk.data.path.append('/home/kieranh/nltk_data')
+from nltk.tokenize import sent_tokenize
+print("loaded nltk data from {}".format(nltk.data.path))
 
 from utils.read_files import *
 from utils.train_utils import mean_pooling
@@ -39,6 +44,7 @@ parser.add_argument("--posts_per_author", dest="posts_per_author", type=int, def
 parser.add_argument("--all_posts", dest="all_posts", type=str2bool, default=False, help="If set, use all posts from the author instead of a fixed number")
 parser.add_argument("--output_file_name", dest="output_file_name", type=str, default="user_embeddings")
 parser.add_argument("--random_sampling", dest="random_sampling", type=str2bool, default=False, help="If set, use random sampling instead of all posts")
+parser.add_argument("--batch_size", dest="batch_size", type=int, default=32, help="Batch size for embedding sentences")
 """
 This script creates the average embeddings to encode
 the annotators described in section 6.2, especially
@@ -128,6 +134,7 @@ if __name__ == '__main__':
     output_file = args.output_file_name + '.pkl'
     random_sampling = args.random_sampling
     all_posts = args.all_posts
+    batch_size = args.batch_size
 
     print("Posts per author: {}".format(posts_per_author))
 
@@ -135,7 +142,7 @@ if __name__ == '__main__':
     with open(path_to_data+'social_norms_clean.csv', encoding="utf8") as file:
         social_comments = pd.read_csv(file)
 
-    social_comments = social_comments[10000]
+    # social_comments = social_comments.sample(10000)  # Sample for faster processing
 
     # creates the verdicts data structure
     print("Creating verdicts data structure")
@@ -172,13 +179,21 @@ if __name__ == '__main__':
 
     print("Using {} model".format(args.bert_model))
 
+
+    # If the server has no internet access, we need to load the model from a local path
+
     # Load model from HuggingFace Hub
-    tokenizer = AutoTokenizer.from_pretrained(args.bert_model)
-    model = AutoModel.from_pretrained(args.bert_model).to(DEVICE)
+    # tokenizer = AutoTokenizer.from_pretrained(args.bert_model)
+    # model = AutoModel.from_pretrained(args.bert_model).to(DEVICE)
+
+    
+    local_path = "/home/kieranh/projects/def-cfwelch/kieranh/Self-disclosuresForAnnotatorModeling/.cache/huggingface/hub/models--sentence-transformers--all-distilroberta-v1/snapshots/842eaed40bee4d61673a81c92d5689a8fed7a09f"  # Use actual snapshot hash
+    tokenizer = AutoTokenizer.from_pretrained(local_path)
+    model = AutoModel.from_pretrained(local_path).to(DEVICE)
 
     user_embeddings = {}
 
-    def extract_batches(seq, batch_size=32):
+    def extract_batches(seq, batch_size=batch_size):
         n = len(seq) // batch_size
         batches  = []
 
@@ -198,22 +213,24 @@ if __name__ == '__main__':
             sys.stdout.flush()
 
             if all_posts == "all":
-                pass
-
-            elif len(posts) >= posts_per_author or posts_per_author == -1:
-
-                if random_sampling and len(posts) > posts_per_author and posts_per_author > 0:
-                    # Randomly sample posts from the author
-                    posts = random.sample(posts, k=posts_per_author)
-                elif posts_per_author == 0: 
-                    # If posts_per_author is 0, use no posts
-                    posts = []
+                pass # use all posts
+            elif posts_per_author == 0:
+                # If posts_per_author is 0, use no posts
+                posts = []
+            elif len(posts) <= posts_per_author:
+                # use all posts if posts_per_author is less than or equal to the number of posts
+                posts = posts
+            elif len(posts) > posts_per_author and random_sampling:
+                # Randomly sample posts from the author
+                posts = random.sample(posts, k=posts_per_author)
+            else:
+                print("Error: posts_per_author is set to {} but author {} has only {} posts".format(posts_per_author, author, len(posts)))
 
 
             processed_texts = [process_tweet(text[0]) for text in posts]
 
             # Tokenize posts
-            batches_text = extract_batches(processed_texts, 64)
+            batches_text = extract_batches(processed_texts, batch_size)
             embeddings = []
         
             for batch in batches_text:
@@ -227,9 +244,12 @@ if __name__ == '__main__':
                     embeddings.append(post_embeddings.cpu())
             
             # Concatenate all embeddings before averaging
-            all_embeddings = torch.cat(embeddings)
-            user_embeddings[author] = all_embeddings.mean(axis=0).numpy()
-
+            if embeddings:
+                all_embeddings = torch.cat(embeddings)
+                user_embeddings[author] = all_embeddings.mean(axis=0).numpy()
+            else:
+                # Handle case where no embeddings were generated
+                user_embeddings[author] = np.zeros(model.config.hidden_size)  # Adjust based on your model's embedding size
 
             if DEBUG:
                 print(user_embeddings[author], user_embeddings[author].shape)
@@ -255,8 +275,8 @@ if __name__ == '__main__':
                     # Randomly sample sentences from the author
                     all_sentences = random.sample(all_sentences, k=posts_per_author)
 
-                # Tokenize sentences and break into batches of 64
-                batches_text = extract_batches(all_sentences, 64)
+                # Tokenize sentences and break into batches of batch_size
+                batches_text = extract_batches(all_sentences, batch_size)
                 embeddings = []
                 
                 for processed_batch in batches_text:
@@ -288,7 +308,6 @@ if __name__ == '__main__':
                 if DEBUG:
                     print(user_embeddings[author], user_embeddings[author].shape)
                     DEBUG = False
-
 
 
     print("Saving embeddings")

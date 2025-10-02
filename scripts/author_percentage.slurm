@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mail-user=hendek12@mcmaster.ca
 #SBATCH --mail-type=BEGIN,END
-#SBATCH --output=logs/baseline_zero.out
+#SBATCH --output=logs/slurm/author_percentage.out
 
 module load python/3.11
 module load StdEnv/2023
@@ -16,11 +16,6 @@ module load cudnn/9.2.1.18
 module load arrow/18.1.0
 
 source env/bin/activate
-python src/users_sbert_embeddings_random.py \
---path_to_data='data/' \
---dirname='data/amit_filtered_history/' \
---output_dir='data/embeddings/' \
---embed_sentences='false' \
---posts_per_author=0 \
---output_file_name='baseline_embeddings_zero' \
---random_sampling='true' \
+python src/author_percentage.py \
+    --comment_embeddings_path='data/embeddings/precomputed_comment_embeddings_postlevel.pkl' \
+    --thresholds 5 10 15 20 25 30

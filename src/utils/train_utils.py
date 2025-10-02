@@ -31,6 +31,8 @@ class AuthorsEmbedder:
         return self.authors_embeddings.get(author, torch.zeros(self.dim))
     
     def embed_author(self, author):
+        if author not in self.authors_embeddings:
+            print("Missing embedding!!! Init to random.")
         return torch.tensor(self.authors_embeddings.get(author, torch.rand(self.dim)))
     
     

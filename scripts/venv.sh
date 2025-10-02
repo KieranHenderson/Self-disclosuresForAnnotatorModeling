@@ -1,7 +1,5 @@
-#!/bin/bash
-#SBATCH --account=def-someuser
-#SBATCH --mem-per-cpu=1.5G      # increase as needed
-#SBATCH --time=1:00:00
+# This file sets up a virtual environment for the project
+
 
 module load python/3.10
 virtualenv --no-download $SLURM_TMPDIR/env

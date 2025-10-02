@@ -1,3 +1,10 @@
+"""
+Report how many authors have at least k comments for various k.
+
+"""
+
+
+
 import argparse
 import pickle as pkl
 from collections import defaultdict

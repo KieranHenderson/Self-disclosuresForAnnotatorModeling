@@ -1,3 +1,7 @@
+"""
+Original file used to generate embeddings for the 2022 unifying data paper.
+"""
+
 import pandas as pd
 import glob
 import os

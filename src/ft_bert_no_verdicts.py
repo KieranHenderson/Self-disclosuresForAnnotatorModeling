@@ -1,3 +1,8 @@
+"""
+Fine tune the SBERT model on AITA verdicts without using the verdict text, only the situation text.
+This can be using all X, no X, or random X, where X is comments or sentences from the author.
+"""
+
 import glob
 import sys
 print(sys.executable)
@@ -30,17 +35,6 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
     
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format="%(asctime)s [%(levelname)s] %(message)s",
-#     handlers=[
-#         #logging.FileHandler(os.path.join(os.path.expanduser("~/PycharmProjects/perspectivism-personalization/logs"), f"{TIMESTAMP}.log")),
-#         logging.FileHandler(os.path.join("logs", f"{TIMESTAMP}.log")),
-#         logging.StreamHandler()
-#     ]
-# )
-
-
 parser = ArgumentParser()
 
 parser.add_argument("--path_to_data", dest="path_to_data", required=True, type=str)
@@ -103,15 +97,7 @@ if __name__ == '__main__':
     results_dir = args.results_dir
     verdicts_dir = args.verdicts_dir
     graph_dim = args.graph_dim
-    # NOTE: had to change b/c mixed forward and backward slash
-    #checkpoint_dir = os.path.join(results_dir, 'best_models', f'{TIMESTAMP}_best_model_sampled.pt')
-    #script_dir = os.path.dirname(os.path.abspath(__file__))
-    #results_dir = os.path.abspath('../results')
-    #results_dir = os.path.join(script_dir, 'results')
-    #checkpoint_dir = os.path.join(r'C:\Users\User\PycharmProjects\perspectivism-personalization\results', 'best_models', f'{TIMESTAMP}_best_model_sampled.pt')
     checkpoint_dir = os.path.join('results/best_models', f'{TIMESTAMP}_best_model_sampled.pt')
-    #checkpoint_dir = os.path.normpath(os.path.join(results_dir, 'best_models', f'{TIMESTAMP}_best_model_sampled.pt'))
-    #checkpoint_dir = os.path.join(results_dir, f'best_models/{TIMESTAMP}_best_model_sampled.pt')
     graph_checkpoint_dir = os.path.join(results_dir, f'best_models/{TIMESTAMP}_best_graphmodel.pt')
     dropout_rate = args.dropout_rate
 
@@ -120,19 +106,13 @@ if __name__ == '__main__':
     USE_AUTHORS = args.use_authors
     author_encoder = args.author_encoder
     social_norm = args.social_norm
-    if USE_AUTHORS:
-        assert author_encoder in {'average', 'graph', 'attribution'}
-    else:
-        assert author_encoder.lower() == 'none' or author_encoder.lower() == 'priming'  or author_encoder.lower() == 'user_id'
+
         
     split_type = args.split_type
     
     
     logging.info("Device {}".format(DEVICE))
 
-    # NOTE: same note as before
-    # social_norm = True #@TODO: Fixed for EMNLP, should make it a parameter 
-    # replaced with parameter
     social_chemistry = pd.read_pickle(path_to_data + 'social_chemistry_clean_with_fulltexts')
     print(social_chemistry.shape)
     # save to csv
@@ -266,6 +246,8 @@ if __name__ == '__main__':
     
 
     if model_name == 'sbert':
+
+        # If the server has no internet access, we need to load the model from a local path
     
         logging.info("Training with SBERT, model name is {}".format(model_name))
 
@@ -284,12 +266,14 @@ if __name__ == '__main__':
     
     
     model.to(DEVICE)
+
+    print("raw_dataset size: ", {k: len(v['text']) for k, v in raw_dataset.items()})
     
     ds = DatasetDict()
 
     for split, d in raw_dataset.items():
         ds[split] = Dataset.from_dict(mapping=d, features=Features({'label': Value(dtype='int64'), 
-                                                                        'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
+        'text': Value(dtype='string'), 'index': Value(dtype='int64'), 'author_node_idx': Value(dtype='int64')}))
     
     def tokenize_function(example):
         return tokenizer(example["text"], truncation=True)
@@ -303,13 +287,11 @@ if __name__ == '__main__':
     tokenized_dataset.set_format("torch")
     
     batch_size = args.batch_size
-    #class_sample_count = [train_labels.count(0), train_labels.count(1)]
-    #weights = 1 / torch.Tensor(class_sample_count)
-    #sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, batch_size)
     
     train_dataloader = DataLoader(
         tokenized_dataset["train"], batch_size=batch_size, collate_fn=data_collator, shuffle = True
     )
+
     eval_dataloader = DataLoader(
         tokenized_dataset["val"], batch_size=batch_size, collate_fn=data_collator
     )
@@ -317,6 +299,10 @@ if __name__ == '__main__':
     test_dataloader = DataLoader(
         tokenized_dataset["test"], batch_size=batch_size, collate_fn=data_collator
     )
+
+    print("Train dataloader size: ", len(train_dataloader))
+    print("Eval dataloader size: ", len(eval_dataloader))
+    print("Test dataloader size: ", len(test_dataloader))
 
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     
@@ -351,6 +337,7 @@ if __name__ == '__main__':
                 authors_embeddings = torch.stack([embedder.embed_author(dataset.verdictToAuthor[dataset.idToVerdict[index.item()]]) for index in verdicts_index]).to(DEVICE)
                 output = model(batch, authors_embeddings)
             else:
+                print("not using embeddings")
                 output = model(batch)
             
             loss = loss_fn(output, labels, samples_per_class_train, loss_type=loss_type)
@@ -376,7 +363,7 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load(checkpoint_dir))
     model.to(DEVICE)
         
-    test_metrics = evaluate(eval_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
+    test_metrics = evaluate(test_dataloader, model, graph_model, data, embedder, USE_AUTHORS, dataset, author_encoder, return_predictions=True)
     results = test_metrics.pop('results')
     logging.info(test_metrics)
     
@@ -401,9 +388,6 @@ if __name__ == '__main__':
     result_logs['results'] = results
     
     
-    #res_file = os.path.join(results_dir, TIMESTAMP + ".json")
-    # res_file = os.path.join(r'C:\Users\User\PycharmProjects\perspectivism-personalization\results',
-    #                               f'{TIMESTAMP}.json')
     res_file = os.path.join(r'results',
                                   f'{TIMESTAMP}.json')
     with open(res_file, mode='w') as f:

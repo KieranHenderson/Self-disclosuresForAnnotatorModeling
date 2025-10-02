@@ -1,3 +1,7 @@
+"""
+Precompute verdict-level user embeddings using precomputed comment and post embeddings.
+"""
+
 import pickle as pkl
 import torch
 import numpy as np
