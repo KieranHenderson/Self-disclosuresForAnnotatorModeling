@@ -13,4 +13,6 @@ You can download our dataset [here](https://drive.google.com/drive/folders/18iGM
 
 * Find the scripts to run models [here](https://github.com/KieranHenderson/Self-disclosuresForAnnotatorModeling/tree/main/scripts)
 
+## Code
+Descriptions of each file can be found within the files or in a README for the 5 times average tests which was automated using slurm.
 
