@@ -6,10 +6,11 @@ You can download our dataset [here](https://drive.google.com/drive/folders/18iGM
 
 ## Running 
 
-* Create user attribution embeddings <br>
+* Run a script for one of the various tests
 ```bash
 ./scripts/{your_test}.sh'
 ```
 
 * Find the scripts to run models [here](https://github.com/KieranHenderson/Self-disclosuresForAnnotatorModeling/tree/main/scripts)
+
 
